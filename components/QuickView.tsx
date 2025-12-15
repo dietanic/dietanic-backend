@@ -1,0 +1,215 @@
+import React, { useState, useEffect } from 'react';
+import { X, Check, ShoppingCart, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Product, ProductVariation } from '../types';
+import { useCart } from '../App';
+import { EngagementService } from '../services/storeService';
+
+interface QuickViewProps {
+  product: Product;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }) => {
+  const { addToCart } = useCart();
+  
+  // State
+  const [selectedVariation, setSelectedVariation] = useState<ProductVariation | undefined>(undefined);
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+  
+  // Ratings State (Self-contained data fetching)
+  const [avgRating, setAvgRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [loadingRatings, setLoadingRatings] = useState(false);
+
+  // Initialize Variations
+  useEffect(() => {
+    if (isOpen && product.variations && product.variations.length > 0) {
+      setSelectedVariation(product.variations[0]);
+    }
+  }, [isOpen, product]);
+
+  // Reset Quantity on Open
+  useEffect(() => {
+    if (isOpen) {
+        setQuantity(1);
+        setAdded(false);
+    }
+  }, [isOpen]);
+
+  // Fetch Ratings on Open
+  useEffect(() => {
+    if (isOpen) {
+      setLoadingRatings(true);
+      EngagementService.getProductReviews(product.id).then(reviews => {
+        if (reviews.length > 0) {
+          const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+          setAvgRating(total / reviews.length);
+          setReviewCount(reviews.length);
+        } else {
+          setAvgRating(0);
+          setReviewCount(0);
+        }
+        setLoadingRatings(false);
+      });
+    }
+  }, [isOpen, product.id]);
+
+  const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const defaultPlan = product.isSubscription && product.subscriptionPlans ? product.subscriptionPlans[0] : undefined;
+    let variationToAdd = selectedVariation;
+    
+    // Default to first variation if needed
+    if (!variationToAdd && product.variations && product.variations.length > 0) {
+        variationToAdd = product.variations[0];
+    }
+
+    addToCart(product, defaultPlan, variationToAdd, quantity);
+    
+    setAdded(true);
+    setTimeout(() => {
+        setAdded(false);
+        onClose();
+    }, 1000);
+  };
+
+  // Determine displayed price
+  const displayPrice = selectedVariation ? selectedVariation.price : product.price;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+        <div 
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" 
+            aria-hidden="true" 
+            onClick={onClose}
+        ></div>
+        
+        <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-3xl animate-scale-in">
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              type="button"
+              className="rounded-full bg-white/80 p-2 text-gray-400 hover:text-gray-500 hover:bg-white focus:outline-none transition-colors"
+              onClick={onClose}
+            >
+              <span className="sr-only">Close</span>
+              <X className="h-6 w-6" aria-hidden="true" />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            <div className="relative h-64 md:h-auto bg-gray-100">
+              <img
+                src={product.image}
+                alt={product.name}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            </div>
+            <div className="p-8 flex flex-col bg-white">
+              <div className="mb-2">
+                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">{product.name}</h2>
+                <p className="text-sm text-brand-600 font-bold uppercase tracking-wide mt-1">{product.category}</p>
+              </div>
+              
+              {/* Rating Display */}
+              <div className="flex items-center gap-2 mb-5">
+                <div className="flex text-yellow-400">
+                  {[...Array(5)].map((_, i) => (
+                    <Star 
+                      key={i} 
+                      size={18} 
+                      className={`${i < Math.round(avgRating) ? 'fill-current text-yellow-400' : 'text-gray-300'}`} 
+                    />
+                  ))}
+                </div>
+                <span className="text-sm text-gray-500 font-medium">
+                  {loadingRatings ? '...' : `(${reviewCount} reviews)`}
+                </span>
+              </div>
+
+              <p className="text-gray-600 mb-6 leading-relaxed flex-grow text-base">
+                {product.description}
+              </p>
+
+              {/* Ingredients / Features */}
+              {product.ingredients && (
+                <div className="mb-6 flex flex-wrap gap-2">
+                  {product.ingredients.slice(0, 4).map((ing, i) => (
+                    <span key={i} className="text-xs font-semibold bg-brand-50 text-brand-700 px-3 py-1.5 rounded-full border border-brand-100">
+                      {ing}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Variations Selector */}
+              {product.variations && product.variations.length > 0 && (
+                <div className="mb-6">
+                  <span className="text-sm font-medium text-gray-900 block mb-2">Options:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {product.variations.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => setSelectedVariation(v)}
+                        className={`px-3 py-1.5 rounded-md text-sm border transition-all ${
+                          selectedVariation?.id === v.id
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600'
+                            : 'border-gray-200 text-gray-700 hover:border-brand-300'
+                        }`}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-auto pt-6 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-3xl font-bold text-gray-900">₹{displayPrice.toFixed(2)}</p>
+                    {product.isSubscription && <span className="text-xs text-brand-600 font-semibold uppercase">Starting price</span>}
+                  </div>
+                  
+                  {/* Quantity */}
+                  <div className="flex items-center border border-gray-300 rounded-md">
+                    <button 
+                      className="px-3 py-1 text-gray-600 hover:bg-gray-100 border-r border-gray-300"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    >-</button>
+                    <span className="px-3 py-1 text-gray-900 font-medium w-8 text-center">{quantity}</span>
+                    <button 
+                      className="px-3 py-1 text-gray-600 hover:bg-gray-100 border-l border-gray-300"
+                      onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                    >+</button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAdd}
+                  className={`w-full flex items-center justify-center gap-2 px-8 py-3.5 rounded-full font-bold shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 ${
+                    added ? 'bg-green-600 text-white shadow-green-200' : 'bg-brand-600 text-white hover:bg-brand-700 shadow-brand-200'
+                  }`}
+                >
+                  {added ? <Check size={20} strokeWidth={3} /> : <ShoppingCart size={20} strokeWidth={2.5} />}
+                  {added ? 'Added' : 'Add to Cart'}
+                </button>
+              </div>
+              
+              <Link to={`/product/${product.id}`} className="mt-4 text-center text-sm text-gray-500 font-medium hover:text-brand-600 hover:underline transition-colors block">
+                View Full Product Details
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
