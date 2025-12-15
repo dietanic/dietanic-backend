@@ -1,3 +1,4 @@
+
 import { Discount } from '../types';
 import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
 
@@ -7,10 +8,27 @@ export const DiscountService = {
     return getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
   },
 
-  validateDiscount: async (code: string): Promise<Discount | null> => {
+  validateDiscount: async (code: string, cartTotal: number, cartCategories: string[]): Promise<Discount | null> => {
     await delay(300);
     const discounts = getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
-    return discounts.find(d => d.code === code && d.isActive) || null;
+    const discount = discounts.find(d => d.code === code && d.isActive);
+
+    if (!discount) return null;
+
+    // Check Minimum Purchase
+    if (discount.minPurchaseAmount && cartTotal < discount.minPurchaseAmount) {
+        throw new Error(`Minimum purchase of ₹${discount.minPurchaseAmount} required.`);
+    }
+
+    // Check Category Restriction
+    if (discount.applicableCategory && discount.applicableCategory !== 'All') {
+        const hasCategory = cartCategories.includes(discount.applicableCategory);
+        if (!hasCategory) {
+            throw new Error(`Discount valid only for ${discount.applicableCategory} items.`);
+        }
+    }
+
+    return discount;
   },
 
   addDiscount: async (discount: Discount): Promise<void> => {

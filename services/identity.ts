@@ -1,6 +1,8 @@
+
 import { User } from '../types';
 import { MOCK_USER } from '../constants';
 import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
+import { GlobalEventBus, EVENTS } from './eventBus';
 
 export const IdentityService = {
   getCurrentUser: async (): Promise<User> => {
@@ -22,6 +24,12 @@ export const IdentityService = {
     return users.find(u => u.id === storedId) || users.find(u => u.id === MOCK_USER.id) || MOCK_USER;
   },
 
+  getUserById: async (userId: string): Promise<User | undefined> => {
+      // Internal helper for other services
+      const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
+      return users.find(u => u.id === userId);
+  },
+
   switchUserSession: async (userId: string): Promise<User> => {
     await delay(300);
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, userId);
@@ -38,6 +46,9 @@ export const IdentityService = {
     const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
     users.push(user);
     setLocalStorage(STORAGE_KEYS.USERS, users);
+    
+    console.log(`🔐 Identity Microservice: User ${user.name} created. Emitting event...`);
+    GlobalEventBus.emit(EVENTS.USER_REGISTERED, user);
   },
 
   updateUser: async (updatedUser: User): Promise<void> => {

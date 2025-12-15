@@ -1,3 +1,4 @@
+
 import { Review, ChatSession, ChatMessage, Visitor } from '../types';
 import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
 
@@ -34,6 +35,27 @@ export const EngagementService = {
     setLocalStorage(STORAGE_KEYS.WISHLIST, list);
   },
 
+  // Recently Viewed Tracking
+  addToRecentlyViewed: (productId: string) => {
+      const MAX_ITEMS = 6;
+      const key = 'dietanic_recently_viewed';
+      let recent = getLocalStorage<string[]>(key, []);
+      
+      // Remove if exists (to bump to top)
+      recent = recent.filter(id => id !== productId);
+      // Add to front
+      recent.unshift(productId);
+      // Limit size
+      if (recent.length > MAX_ITEMS) recent.pop();
+      
+      setLocalStorage(key, recent);
+  },
+
+  getRecentlyViewed: async (): Promise<string[]> => {
+      await delay(100);
+      return getLocalStorage<string[]>('dietanic_recently_viewed', []);
+  },
+
   // TrackComm Chat (Simulating WebSocket)
   getSessions: async (): Promise<ChatSession[]> => {
      await delay(200);
@@ -66,6 +88,23 @@ export const EngagementService = {
         chatEvents.dispatchEvent(new Event('update'));
     }
     return session;
+  },
+
+  closeSession: async (sessionId: string): Promise<void> => {
+      await delay(200);
+      const sessions = getLocalStorage<ChatSession[]>(STORAGE_KEYS.CHATS, []);
+      const idx = sessions.findIndex(s => s.id === sessionId);
+      if (idx !== -1) {
+          sessions[idx].status = 'closed';
+          setLocalStorage(STORAGE_KEYS.CHATS, sessions);
+          chatEvents.dispatchEvent(new Event('update'));
+      }
+  },
+
+  submitFeedback: async (sessionId: string, rating: number): Promise<void> => {
+      await delay(200);
+      // In a real app, we'd store this feedback linked to the session
+      console.log(`Feedback received for session ${sessionId}: ${rating} stars`);
   },
 
   sendMessage: async (sessionId: string, text: string, sender: 'user' | 'agent' | 'system'): Promise<ChatMessage> => {

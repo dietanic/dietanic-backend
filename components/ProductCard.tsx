@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
-import { Plus, Check, Heart, Eye, Star, Share2 } from 'lucide-react';
+import { Plus, Check, Heart, Eye, Star, Share2, AlertTriangle, BarChart2 } from 'lucide-react';
 import { Product } from '../types';
-import { useCart, useWishlist } from '../App';
+import { useCart, useWishlist, useAuth } from '../App';
+import { useComparison } from './ComparisonSystem';
 import { Link } from 'react-router-dom';
 import { EngagementService } from '../services/storeService';
 import { QuickView } from './QuickView';
@@ -13,6 +15,9 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { addToCompare, isInCompare, removeFromCompare } = useComparison();
+  const { user } = useAuth();
+  
   const [added, setAdded] = useState(false);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   
@@ -26,6 +31,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [loadingRatings, setLoadingRatings] = useState(true);
 
   const inWishlist = isInWishlist(product.id);
+  const isCompared = isInCompare(product.id);
+
+  // Dynamic Pricing Logic
+  // Check if user has a wholesale tier assigned in their profile
+  const isWholesaleUser = user.priceTier === 'wholesale';
+  
+  // Apply discount for wholesale users on all products (simplified logic for demo)
+  const displayPrice = isWholesaleUser ? product.price * 0.8 : product.price;
+
+  // Stock Logic
+  const lowStockThreshold = product.lowStockThreshold || 5;
+  const isLowStock = product.stock > 0 && product.stock <= lowStockThreshold;
+  const isOutOfStock = product.stock <= 0;
 
   // Fetch ratings on mount so they appear on the card
   useEffect(() => {
@@ -47,6 +65,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     e.preventDefault();
     e.stopPropagation(); 
     
+    if (isOutOfStock) return;
+
+    // Check stock
+    if (cardQuantity > product.stock) {
+        alert("Cannot add more than available stock.");
+        return;
+    }
+    
     // If subscription, use first plan as default
     const defaultPlan = product.isSubscription && product.subscriptionPlans ? product.subscriptionPlans[0] : undefined;
     
@@ -66,6 +92,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     e.stopPropagation();
     e.preventDefault();
     toggleWishlist(product.id);
+  };
+
+  const handleToggleCompare = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (isCompared) removeFromCompare(product.id);
+      else addToCompare(product);
   };
 
   const handleShare = (e: React.MouseEvent) => {
@@ -92,16 +125,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     // Outer div wrapper to accommodate the modal without breaking grid layouts
     <div className="h-full relative">
         {/* Actual Card */}
-        <div className="group relative bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-xl hover:border-brand-300 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full">
+        <div className={`group relative bg-white border rounded-2xl shadow-sm hover:shadow-xl hover:border-brand-300 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full ${isOutOfStock ? 'opacity-75' : 'border-gray-200'}`}>
             <Link to={`/product/${product.id}`} className="aspect-w-1 aspect-h-1 w-full overflow-hidden bg-gray-100 xl:aspect-w-7 xl:aspect-h-8 relative block group-hover:shadow-inner">
                 <img
                 src={product.image}
                 alt={product.name}
                 loading="lazy"
-                className="h-64 w-full object-cover object-center transform transition-transform duration-500 group-hover:scale-105"
+                className={`h-64 w-full object-cover object-center transform transition-transform duration-500 group-hover:scale-105 ${isOutOfStock ? 'grayscale' : ''}`}
                 />
                 
-                {/* Action Buttons (Wishlist & Share) */}
+                {/* Action Buttons */}
                 <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
                     <button 
                         onClick={handleToggleWishlist}
@@ -113,23 +146,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         />
                     </button>
                     <button 
-                        onClick={handleShare}
-                        className="bg-white/90 p-2 rounded-full shadow-sm hover:bg-white transition-colors hover:scale-110 active:scale-95"
-                        title="Share Product"
+                        onClick={handleToggleCompare}
+                        className={`bg-white/90 p-2 rounded-full shadow-sm hover:bg-white transition-colors hover:scale-110 active:scale-95 ${isCompared ? 'bg-brand-50' : ''}`}
+                        title="Compare Product"
                     >
-                        {shareCopied ? (
-                            <Check className="h-5 w-5 text-green-600" />
-                        ) : (
-                            <Share2 className="h-5 w-5 text-gray-400 hover:text-blue-500" />
-                        )}
+                        <BarChart2 className={`h-5 w-5 ${isCompared ? 'text-brand-600 fill-brand-100' : 'text-gray-400 hover:text-brand-600'}`} />
                     </button>
                 </div>
 
-                {product.isSubscription && (
-                <span className="absolute top-2 left-2 bg-brand-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                    Subscription
-                </span>
-                )}
+                {/* Badges */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                    {product.isSubscription && (
+                        <span className="bg-brand-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md">
+                            SUBSCRIPTION
+                        </span>
+                    )}
+                    {isOutOfStock && (
+                        <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md">
+                            SOLD OUT
+                        </span>
+                    )}
+                    {isLowStock && (
+                        <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                            <AlertTriangle size={10} /> ONLY {product.stock} LEFT
+                        </span>
+                    )}
+                </div>
                 
                 {/* Overlay for Quick View */}
                 <div className="absolute inset-0 bg-black/5 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 backdrop-blur-[1px]">
@@ -187,10 +229,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 </div>
                 <div className="mt-5 flex items-center justify-between">
                     <div>
-                        <p className="text-lg font-bold text-gray-900">
-                            {product.isSubscription ? 'From ' : ''}₹{product.price.toFixed(2)}
+                        {/* Pricelist Display */}
+                        <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            {product.isSubscription ? 'From ' : ''}
+                            ₹{displayPrice.toFixed(2)}
+                            {isWholesaleUser && (
+                                <span className="text-xs text-gray-400 line-through font-normal">₹{product.price.toFixed(2)}</span>
+                            )}
                         </p>
                         {product.isSubscription && <span className="text-xs text-gray-400 font-medium">per week</span>}
+                        {isWholesaleUser && <span className="text-[10px] text-brand-600 font-bold uppercase">Wholesale</span>}
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -199,7 +247,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                             <select 
                                 value={cardQuantity}
                                 onChange={(e) => setCardQuantity(Number(e.target.value))}
-                                className="block w-14 rounded-md border-gray-300 py-1.5 text-base focus:border-brand-500 focus:outline-none focus:ring-brand-500 sm:text-xs border text-center"
+                                disabled={isOutOfStock}
+                                className="block w-14 rounded-md border-gray-300 py-1.5 text-base focus:border-brand-500 focus:outline-none focus:ring-brand-500 sm:text-xs border text-center disabled:bg-gray-100"
                             >
                                 {[1, 2, 3, 4, 5].map(num => (
                                     <option key={num} value={num}>{num}</option>
@@ -209,10 +258,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
                         <button
                             onClick={handleAdd}
+                            disabled={isOutOfStock}
                             className={`p-2 rounded-full transition-all duration-300 z-20 shadow-sm ${
-                            added ? 'bg-brand-600 text-white scale-110' : 'bg-gray-100 text-gray-900 hover:bg-brand-600 hover:text-white hover:shadow-md'
+                            added 
+                                ? 'bg-brand-600 text-white scale-110' 
+                                : isOutOfStock 
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-gray-100 text-gray-900 hover:bg-brand-600 hover:text-white hover:shadow-md'
                             }`}
-                            title="Add to Cart"
+                            title={isOutOfStock ? "Out of Stock" : "Add to Cart"}
                         >
                             {added ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
                         </button>

@@ -1,9 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CatalogService, EngagementService } from '../services/storeService';
 import { Product, Review, SubscriptionPlan, ProductVariation } from '../types';
 import { useCart, useAuth } from '../App';
 import { Star, ShoppingCart, ArrowLeft, User, CheckCircle, Calendar, Loader, Plus, Minus } from 'lucide-react';
+import { ProductRecommender } from '../components/ProductRecommender';
 
 export const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,7 +30,12 @@ export const ProductDetail: React.FC = () => {
     const fetchData = async () => {
         if (!id) return;
         setLoading(true);
-        
+        // Scroll to top when ID changes
+        window.scrollTo(0, 0);
+
+        // Track view
+        EngagementService.addToRecentlyViewed(id);
+
         const [prod, revs] = await Promise.all([
             CatalogService.getProductById(id),
             EngagementService.getProductReviews(id)
@@ -253,6 +260,15 @@ export const ProductDetail: React.FC = () => {
                 )}
             </div>
           </div>
+        </div>
+        
+        {/* Upsell / Cross-Sell Section */}
+        <div className="border-t border-gray-200 pt-10">
+            <ProductRecommender 
+                currentProductId={product.id} 
+                category={product.category}
+                title="Complete Your Meal"
+            />
         </div>
 
         {/* Reviews Section */}

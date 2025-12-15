@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useCart, useAuth } from '../App';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, ArrowLeft, CreditCard, Calendar, CheckCircle, Tag, Loader } from 'lucide-react';
-import { SalesService, DiscountService } from '../services/storeService';
+import { Trash2, ArrowLeft, CreditCard, Calendar, CheckCircle, Tag, Loader, AlertTriangle, Wallet, Truck, Zap, Clock } from 'lucide-react';
+import { APIGateway, MarketingService } from '../services/storeService';
 import { sendOrderConfirmationEmail } from '../services/emailService';
-import { Order } from '../types';
+import { Order, CustomerProfile, TaxSettings } from '../types';
+import { ProductRecommender } from '../components/ProductRecommender';
 
 export const Cart: React.FC = () => {
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
@@ -13,6 +15,14 @@ export const Cart: React.FC = () => {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCheckingPromo, setIsCheckingPromo] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Customer Profile for Wallet
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [useWallet, setUseWallet] = useState(false);
+
+  // Delivery State
+  const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express' | 'scheduled'>('standard');
 
   // Discount State
   const [promoCode, setPromoCode] = useState('');
@@ -20,9 +30,61 @@ export const Cart: React.FC = () => {
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [promoMessage, setPromoMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
 
+  // Tax Settings State
+  const [taxSettings, setTaxSettings] = useState<TaxSettings>({ isRegistered: false, gstin: '', state: 'Maharashtra' });
+
+  // Constants
+  const GST_RATE_FOOD = 0.05; // 5% for restaurant services/food
+
+  useEffect(() => {
+    const fetchData = async () => {
+        if(user) {
+            const [p, t] = await Promise.all([
+                APIGateway.customer.getProfile(user),
+                APIGateway.settings.getTax()
+            ]);
+            setProfile(p);
+            setTaxSettings(t);
+        }
+    };
+    fetchData();
+  }, [user]);
+
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const tax = subtotal * 0.08;
-  const total = Math.max(0, subtotal + tax - discountAmount);
+  
+  // Calculate Shipping
+  const getShippingCost = () => {
+    if (deliveryMethod === 'standard') {
+        return subtotal > 500 ? 0 : 50;
+    }
+    if (deliveryMethod === 'express') return 150;
+    if (deliveryMethod === 'scheduled') return 100;
+    return 0;
+  };
+  const shippingCost = getShippingCost();
+
+  // Fiscal Position Logic (GST)
+  // Only apply tax if registered
+  const userState = user?.addresses[0]?.state || '';
+  const storeState = taxSettings.state || 'Maharashtra';
+  const isIntraState = !userState || userState.toLowerCase() === storeState.toLowerCase() || (userState.toLowerCase() === 'mh' && storeState === 'Maharashtra');
+  
+  // Tax Calculation
+  const totalTax = taxSettings.isRegistered ? subtotal * GST_RATE_FOOD : 0;
+  
+  const taxDetails = taxSettings.isRegistered 
+    ? (isIntraState 
+        ? { type: 'INTRA', cgst: totalTax / 2, sgst: totalTax / 2 }
+        : { type: 'INTER', igst: totalTax }
+      )
+    : { type: 'UR', amount: 0 }; // Unregistered
+
+  const grandTotal = Math.max(0, subtotal + totalTax + shippingCost - discountAmount);
+
+  // Wallet Logic
+  const walletBalance = profile?.walletBalance || 0;
+  const walletDeduction = useWallet ? Math.min(walletBalance, grandTotal) : 0;
+  const finalPayable = Math.max(0, grandTotal - walletDeduction);
 
   const handleApplyPromo = async () => {
     setPromoMessage(null);
@@ -31,28 +93,33 @@ export const Cart: React.FC = () => {
     if (!code) return;
 
     setIsCheckingPromo(true);
-    const discount = await DiscountService.validateDiscount(code);
-    setIsCheckingPromo(false);
-
-    if (discount) {
-        let calculatedDiscount = 0;
-        if (discount.type === 'percentage') {
-            calculatedDiscount = subtotal * (discount.value / 100);
-            setPromoMessage({ text: `${discount.value}% discount applied!`, type: 'success' });
-        } else {
-            calculatedDiscount = discount.value;
-            setPromoMessage({ text: `₹${discount.value} discount applied!`, type: 'success' });
-        }
+    try {
+        // Collect categories in cart for validation
+        const cartCategories = Array.from(new Set(cartItems.map(item => item.category))) as string[];
+        const discount = await APIGateway.promotion.validate(code, subtotal, cartCategories);
         
-        // Cap discount at subtotal
-        if (calculatedDiscount > subtotal) calculatedDiscount = subtotal;
+        if (discount) {
+            let calculatedDiscount = 0;
+            if (discount.type === 'percentage') {
+                calculatedDiscount = subtotal * (discount.value / 100);
+                setPromoMessage({ text: `${discount.value}% discount applied!`, type: 'success' });
+            } else {
+                calculatedDiscount = discount.value;
+                setPromoMessage({ text: `₹${discount.value} discount applied!`, type: 'success' });
+            }
+            
+            // Cap discount at subtotal
+            if (calculatedDiscount > subtotal) calculatedDiscount = subtotal;
 
-        setDiscountAmount(calculatedDiscount);
-        setAppliedPromo(discount.code);
-    } else {
+            setDiscountAmount(calculatedDiscount);
+            setAppliedPromo(discount.code);
+        }
+    } catch (err: any) {
         setDiscountAmount(0);
         setAppliedPromo(null);
-        setPromoMessage({ text: 'Invalid or expired promo code', type: 'error' });
+        setPromoMessage({ text: err.message || 'Invalid or expired promo code', type: 'error' });
+    } finally {
+        setIsCheckingPromo(false);
     }
   };
 
@@ -64,35 +131,45 @@ export const Cart: React.FC = () => {
   };
 
   const handleCheckoutClick = () => {
+    setCheckoutError(null);
     setIsCheckoutModalOpen(true);
   };
 
   const confirmCheckout = async () => {
     setIsProcessing(true);
+    setCheckoutError(null);
+    
     const newOrder: Order = {
         id: Date.now().toString(),
         userId: user.id,
         items: [...cartItems],
-        total: total,
+        total: grandTotal, 
+        subtotal: subtotal,
+        taxAmount: totalTax,
+        taxType: taxSettings.isRegistered ? (isIntraState ? 'INTRA' : 'INTER') : 'UR',
+        paidWithWallet: walletDeduction, 
         status: 'pending',
         date: new Date().toISOString(),
-        shippingAddress: user.addresses[0] || { street: 'N/A', city: 'N/A', state: 'N/A', zip: 'N/A' }
+        shippingAddress: user.addresses[0] || { street: 'N/A', city: 'N/A', state: 'N/A', zip: 'N/A' },
+        marketingData: MarketingService.getMarketingData(),
+        shippingMethod: deliveryMethod,
+        shippingCost: shippingCost
     };
     
-    // Create Order via Sales Service
-    await SalesService.createOrder(newOrder);
-
-    // Send Confirmation Email
     try {
-        await sendOrderConfirmationEmail(newOrder, user);
-    } catch (error) {
-        console.error("Failed to send email", error);
-    }
+        // Using API Gateway to Create Order
+        // This invokes the SAGA Orchestrator for distributed transaction reliability
+        await APIGateway.order.create(newOrder);
 
-    clearCart();
-    setIsProcessing(false);
-    setIsCheckoutModalOpen(false);
-    navigate('/account');
+        clearCart();
+        setIsProcessing(false);
+        setIsCheckoutModalOpen(false);
+        navigate('/account');
+    } catch (error: any) {
+        console.error("Checkout failed:", error);
+        setCheckoutError(error.message || "Failed to process order. Please try again.");
+        setIsProcessing(false);
+    }
   };
 
   if (cartItems.length === 0) {
@@ -103,6 +180,9 @@ export const Cart: React.FC = () => {
         <Link to="/shop" className="inline-flex items-center text-brand-600 font-semibold hover:text-brand-500">
           <ArrowLeft className="h-4 w-4 mr-2" /> Continue Shopping
         </Link>
+        <div className="mt-12 text-left">
+            <ProductRecommender title="Recommended for You" />
+        </div>
       </div>
     );
   }
@@ -179,24 +259,115 @@ export const Cart: React.FC = () => {
                 </li>
               ))}
             </ul>
+
+            {/* Delivery Configurator */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <Truck className="text-brand-600" size={20} /> Delivery Method
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Standard */}
+                    <div 
+                        onClick={() => setDeliveryMethod('standard')}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'standard' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}
+                    >
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-gray-900 text-sm">Standard</span>
+                            {subtotal > 500 ? <span className="text-xs font-bold text-green-600">FREE</span> : <span className="text-xs font-bold text-gray-900">₹50</span>}
+                        </div>
+                        <p className="text-xs text-gray-500">Delivered within 24 hours.</p>
+                    </div>
+                    
+                    {/* Express */}
+                    <div 
+                        onClick={() => setDeliveryMethod('express')}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'express' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}
+                    >
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-gray-900 flex items-center gap-1 text-sm"><Zap size={12} className="fill-yellow-400 text-yellow-400"/> Express</span>
+                            <span className="text-xs font-bold text-gray-900">₹150</span>
+                        </div>
+                        <p className="text-xs text-gray-500">Delivered within 2 hours.</p>
+                    </div>
+
+                    {/* Scheduled */}
+                    <div 
+                        onClick={() => setDeliveryMethod('scheduled')}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'scheduled' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}
+                    >
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-gray-900 flex items-center gap-1 text-sm"><Clock size={12}/> Scheduled</span>
+                            <span className="text-xs font-bold text-gray-900">₹100</span>
+                        </div>
+                        <p className="text-xs text-gray-500">Select a convenient slot.</p>
+                    </div>
+                </div>
+                {deliveryMethod === 'standard' && subtotal <= 500 && (
+                    <p className="text-xs text-brand-600 mt-3 flex items-center gap-1">
+                        <Tag size={12} /> Add ₹{(500 - subtotal).toFixed(0)} more for free standard delivery!
+                    </p>
+                )}
+            </div>
+
+            {/* Cross-Sell Section */}
+            <div className="mt-10 pt-6 border-t border-gray-200">
+                <ProductRecommender title="Don't Forget These!" limit={4} />
+            </div>
+
           </div>
 
           {/* Order Summary */}
           <div className="lg:col-span-5 mt-16 lg:mt-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-6 sm:p-6 lg:p-8">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-6 sm:p-6 lg:p-8 sticky top-24">
               <h2 className="text-lg font-medium text-gray-900">Order summary</h2>
               <dl className="mt-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <dt className="text-sm text-gray-600">Subtotal</dt>
                   <dd className="text-sm font-medium text-gray-900">₹{subtotal.toFixed(2)}</dd>
                 </div>
+                
                 <div className="flex items-center justify-between">
-                  <dt className="text-sm text-gray-600">Tax Estimate (8%)</dt>
-                  <dd className="text-sm font-medium text-gray-900">₹{tax.toFixed(2)}</dd>
+                  <dt className="text-sm text-gray-600">Delivery ({deliveryMethod})</dt>
+                  <dd className="text-sm font-medium text-gray-900">
+                      {shippingCost === 0 ? <span className="text-green-600">Free</span> : `₹${shippingCost.toFixed(2)}`}
+                  </dd>
                 </div>
+
+                {/* Dynamic GST Display based on settings */}
+                {taxSettings.isRegistered ? (
+                    taxDetails.type === 'INTRA' ? (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <dt className="text-sm text-gray-600">CGST (2.5%)</dt>
+                                <dd className="text-sm font-medium text-gray-900">₹{taxDetails.cgst?.toFixed(2)}</dd>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <dt className="text-sm text-gray-600">SGST (2.5%)</dt>
+                                <dd className="text-sm font-medium text-gray-900">₹{taxDetails.sgst?.toFixed(2)}</dd>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex items-center justify-between">
+                            <dt className="text-sm text-gray-600">IGST (5%)</dt>
+                            <dd className="text-sm font-medium text-gray-900">₹{taxDetails.igst?.toFixed(2)}</dd>
+                        </div>
+                    )
+                ) : (
+                    <div className="flex items-center justify-between">
+                        <dt className="text-sm text-gray-600">Tax (UR)</dt>
+                        <dd className="text-sm font-medium text-gray-900">₹0.00</dd>
+                    </div>
+                )}
+                
+                {/* Tax Note */}
+                {taxSettings.isRegistered && (
+                    <div className="text-[10px] text-gray-400 italic mt-1">
+                        GST applied based on shipping state: {userState || 'Unknown (Default Intra)'}. Store Location: {storeState}.
+                    </div>
+                )}
                 
                 {appliedPromo && (
-                  <div className="flex items-center justify-between text-green-600">
+                  <div className="flex items-center justify-between text-green-600 border-t border-dashed border-gray-200 pt-2">
                     <dt className="text-sm flex items-center gap-1">
                         <Tag size={14} /> Discount ({appliedPromo})
                     </dt>
@@ -205,10 +376,44 @@ export const Cart: React.FC = () => {
                 )}
 
                 <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                  <dt className="text-base font-medium text-gray-900">Order total</dt>
-                  <dd className="text-base font-medium text-gray-900">₹{total.toFixed(2)}</dd>
+                  <dt className="text-base font-medium text-gray-900">Total</dt>
+                  <dd className="text-base font-medium text-gray-900">₹{grandTotal.toFixed(2)}</dd>
                 </div>
               </dl>
+                
+                {/* Wallet Payment Option */}
+                {walletBalance > 0 && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={useWallet}
+                                    onChange={(e) => setUseWallet(e.target.checked)}
+                                    className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" 
+                                />
+                                <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                    <Wallet size={16} className="text-brand-600" /> Use Wallet Balance
+                                </span>
+                            </label>
+                            <span className="text-sm text-gray-500">Available: ₹{walletBalance.toFixed(2)}</span>
+                        </div>
+                        {useWallet && (
+                            <div className="flex items-center justify-between text-brand-700 bg-brand-50 p-2 rounded">
+                                <span className="text-sm">Wallet Applied</span>
+                                <span className="text-sm font-bold">-₹{walletDeduction.toFixed(2)}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Final Payable */}
+                {useWallet && (
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-2">
+                        <dt className="text-lg font-bold text-gray-900">To Pay</dt>
+                        <dd className="text-lg font-bold text-gray-900">₹{finalPayable.toFixed(2)}</dd>
+                    </div>
+                )}
 
               {/* Promo Code Input */}
               <div className="mt-6 border-t border-gray-100 pt-4">
@@ -254,7 +459,8 @@ export const Cart: React.FC = () => {
                   onClick={handleCheckoutClick}
                   className="w-full bg-brand-600 border border-transparent rounded-md shadow-sm py-3 px-4 text-base font-medium text-white hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-brand-500 flex justify-center items-center gap-2"
                 >
-                  <CreditCard className="h-5 w-5" /> Checkout
+                  <CreditCard className="h-5 w-5" /> 
+                  {finalPayable === 0 ? 'Place Order' : 'Checkout'}
                 </button>
               </div>
             </div>
@@ -278,6 +484,14 @@ export const Cart: React.FC = () => {
                                 <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
                                     Confirm Your Order
                                 </h3>
+                                
+                                {checkoutError && (
+                                    <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative flex items-center gap-2">
+                                        <AlertTriangle size={18} />
+                                        <span className="block sm:inline text-sm">{checkoutError}</span>
+                                    </div>
+                                )}
+
                                 <div className="mt-4">
                                     <p className="text-sm text-gray-500 mb-4">
                                         Please review your order details before finalizing.
@@ -302,9 +516,13 @@ export const Cart: React.FC = () => {
                                             <span>Subtotal</span>
                                             <span>₹{subtotal.toFixed(2)}</span>
                                         </div>
+                                        <div className="flex justify-between text-sm text-gray-600">
+                                            <span>Delivery ({deliveryMethod})</span>
+                                            <span>{shippingCost === 0 ? 'Free' : `₹${shippingCost.toFixed(2)}`}</span>
+                                        </div>
                                          <div className="flex justify-between text-sm text-gray-600">
-                                            <span>Tax</span>
-                                            <span>₹{tax.toFixed(2)}</span>
+                                            <span>Tax ({taxSettings.isRegistered ? taxDetails.type : 'UR'})</span>
+                                            <span>₹{totalTax.toFixed(2)}</span>
                                         </div>
                                         {appliedPromo && (
                                             <div className="flex justify-between text-sm text-green-600">
@@ -312,9 +530,15 @@ export const Cart: React.FC = () => {
                                                 <span>-₹{discountAmount.toFixed(2)}</span>
                                             </div>
                                         )}
+                                        {useWallet && (
+                                            <div className="flex justify-between text-sm text-brand-600 font-medium">
+                                                <span>Wallet Balance Used</span>
+                                                <span>-₹{walletDeduction.toFixed(2)}</span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between text-base font-medium text-gray-900 border-t border-gray-200 pt-2">
-                                            <span>Total Amount</span>
-                                            <span>₹{total.toFixed(2)}</span>
+                                            <span>Total Amount Due</span>
+                                            <span>₹{finalPayable.toFixed(2)}</span>
                                         </div>
                                     </div>
 

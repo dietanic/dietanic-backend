@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
@@ -16,7 +17,7 @@ export const askNutritionist = async (question: string): Promise<string> => {
       contents: prompt,
     });
 
-    return response.text.trim();
+    return response.text?.trim() || "I couldn't process that request right now.";
   } catch (error) {
     console.error("Error asking nutritionist:", error);
     return "I couldn't process that request right now.";

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
@@ -6,9 +7,14 @@ import { Shop } from './pages/Shop';
 import { Cart } from './pages/Cart';
 import { Admin } from './pages/Admin';
 import { Customer } from './pages/Customer';
+import { POS } from './pages/POS';
+import { Kitchen } from './pages/Kitchen';
+import { BookTable } from './pages/BookTable';
 import { ProductDetail } from './pages/ProductDetail';
 import { TrackCommWidget } from './components/TrackCommWidget';
-import { initStore, IdentityService, EngagementService } from './services/storeService';
+import { NewsletterPopup } from './components/NewsletterPopup';
+import { ComparisonProvider } from './components/ComparisonSystem';
+import { initStore, IdentityService, EngagementService, MarketingService } from './services/storeService';
 import { Product, CartItem, SubscriptionPlan, User, ProductVariation } from './types';
 
 // Auth Context
@@ -71,6 +77,9 @@ const App: React.FC = () => {
   const [usersList, setUsersList] = useState<User[]>([]);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
+  // Marketing: Abandoned Cart Timer Ref
+  const abandonedCartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const bootstrap = async () => {
         initStore();
@@ -82,9 +91,33 @@ const App: React.FC = () => {
         // Load Auth from Identity Service
         await refreshAuth();
         setIsLoadingAuth(false);
+        
+        // Initialize Marketing Tracking (UTMs)
+        MarketingService.captureTrafficSource();
     };
     bootstrap();
   }, []);
+
+  // Marketing: Monitor Cart for Abandonment
+  useEffect(() => {
+    // Clear existing timer on every cart change
+    if (abandonedCartTimer.current) {
+        clearTimeout(abandonedCartTimer.current);
+    }
+
+    // Only start timer if cart has items and user is known (in a real app, we'd capture email early)
+    if (cartItems.length > 0 && currentUser) {
+        // Set a timer (using short duration 30s for demo, usually it's 1-2 hours)
+        abandonedCartTimer.current = setTimeout(() => {
+            MarketingService.triggerAbandonedCartSequence(currentUser.email, cartItems.length);
+        }, 30000); // 30 seconds idle trigger
+    }
+
+    return () => {
+        if (abandonedCartTimer.current) clearTimeout(abandonedCartTimer.current);
+    };
+  }, [cartItems, currentUser]);
+
 
   const refreshAuth = async () => {
       const [users, me] = await Promise.all([
@@ -118,9 +151,25 @@ const App: React.FC = () => {
       });
 
       if (existing) {
+        // Verify stock before adding
+        const totalQty = existing.quantity + quantity;
+        const limit = selectedVariation ? selectedVariation.stock : product.stock;
+        
+        if (totalQty > limit) {
+            alert(`Sorry, only ${limit} units available.`);
+            return prev;
+        }
+
         return prev.map(item => 
-          item.cartItemId === existing.cartItemId ? { ...item, quantity: item.quantity + quantity } : item
+          item.cartItemId === existing.cartItemId ? { ...item, quantity: totalQty } : item
         );
+      }
+      
+      // New Item check
+      const limit = selectedVariation ? selectedVariation.stock : product.stock;
+      if (quantity > limit) {
+          alert(`Sorry, only ${limit} units available.`);
+          return prev;
       }
       
       const price = selectedVariation ? selectedVariation.price : (selectedPlan ? selectedPlan.price : product.price);
@@ -172,47 +221,57 @@ const App: React.FC = () => {
     <AuthContext.Provider value={{ user: currentUser, login: handleLogin, usersList, isAdmin, isEditor, canManageStore, isLoading: isLoadingAuth }}>
       <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, updateQuantity, clearCart }}>
         <WishlistContext.Provider value={{ wishlist, toggleWishlist, isInWishlist }}>
-          <Router>
-            <div className="min-h-screen bg-white flex flex-col">
-              <Navbar />
-              <main className="flex-grow">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/shop" element={<Shop />} />
-                  <Route path="/product/:id" element={<ProductDetail />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/admin" element={<Admin />} />
-                  <Route path="/account" element={<Customer />} />
-                  <Route path="/about" element={<Navigate to="/" />} />
-                </Routes>
-              </main>
-              
-              <footer className="bg-gray-800 text-white py-12">
-                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div>
-                       <h3 className="text-xl font-bold mb-4">Dietanic</h3>
-                       <p className="text-gray-400 text-sm">Eat fresh, stay healthy. The best salad subscription in town.</p>
-                    </div>
-                    <div>
-                       <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
-                       <ul className="space-y-2 text-sm text-gray-400">
-                          <li><a href="#/shop" className="hover:text-white">Shop</a></li>
-                          <li><a href="#/account" className="hover:text-white">Account</a></li>
-                          <li><a href="#/admin" className="hover:text-white">Admin</a></li>
-                       </ul>
-                    </div>
-                    <div>
-                       <h4 className="text-lg font-semibold mb-4">Contact</h4>
-                       <p className="text-gray-400 text-sm">support@dietanic.com</p>
-                       <p className="text-gray-400 text-sm">1-800-SALAD-GO</p>
-                    </div>
-                 </div>
-              </footer>
+          <ComparisonProvider>
+            <Router>
+              <div className="min-h-screen bg-white flex flex-col">
+                <Navbar />
+                <main className="flex-grow">
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/shop" element={<Shop />} />
+                    <Route path="/product/:id" element={<ProductDetail />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/account" element={<Customer />} />
+                    <Route path="/book-table" element={<BookTable />} />
+                    {/* Operations Routes */}
+                    <Route path="/pos" element={canManageStore ? <POS /> : <Navigate to="/" />} />
+                    <Route path="/kitchen" element={canManageStore ? <Kitchen /> : <Navigate to="/" />} />
+                    <Route path="/about" element={<Navigate to="/" />} />
+                  </Routes>
+                </main>
+                
+                <footer className="bg-gray-800 text-white py-12 pb-20">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                      <div>
+                        <h3 className="text-xl font-bold mb-4">Dietanic</h3>
+                        <p className="text-gray-400 text-sm">Eat fresh, stay healthy. The best salad subscription in town.</p>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
+                        <ul className="space-y-2 text-sm text-gray-400">
+                            <li><a href="#/shop" className="hover:text-white">Shop</a></li>
+                            <li><a href="#/account" className="hover:text-white">Account</a></li>
+                            <li><a href="#/admin" className="hover:text-white">Admin</a></li>
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold mb-4">Contact</h4>
+                        <p className="text-gray-400 text-sm">support@dietanic.com</p>
+                        <p className="text-gray-400 text-sm">1-800-SALAD-GO</p>
+                        <p className="text-gray-500 text-xs mt-4">Fiscal Reg: GSTIN27AAAAA0000A1Z5</p>
+                      </div>
+                  </div>
+                </footer>
 
-              {/* TrackComm Engagement Widget - Only visible to non-admins */}
-              <TrackCommWidget />
-            </div>
-          </Router>
+                {/* Marketing Widgets */}
+                <NewsletterPopup />
+                
+                {/* TrackComm Engagement Widget - Only visible to non-admins */}
+                <TrackCommWidget />
+              </div>
+            </Router>
+          </ComparisonProvider>
         </WishlistContext.Provider>
       </CartContext.Provider>
     </AuthContext.Provider>

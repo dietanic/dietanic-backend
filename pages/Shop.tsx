@@ -1,20 +1,23 @@
+
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CatalogService } from '../services/storeService';
 import { Product, Category } from '../types';
 import { ProductCard } from '../components/ProductCard';
-import { Filter, Search, Loader } from 'lucide-react';
+import { Filter, Search, Loader, X } from 'lucide-react';
 import { askNutritionist } from '../services/geminiService';
 
 export const Shop: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedIngredient, setSelectedIngredient] = useState<string>('All');
+  const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
   
   // AI Chat State
-  const [chatQuery, setChatQuery] = useState('');
+  const [chatQuery, setChatQuery] = useState<string>('');
   const [chatResponse, setChatResponse] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
@@ -32,11 +35,29 @@ export const Shop: React.FC = () => {
     fetchData();
   }, []);
 
-  const allIngredients = Array.from(new Set(products.flatMap(p => p.ingredients || []))).sort();
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) setSearchTerm(q);
+  }, [searchParams]);
+
+  const allIngredients = Array.from(new Set(products.flatMap(p => p.ingredients || []))).sort() as string[];
+
+  const toggleIngredient = (ingredient: string) => {
+      setSelectedIngredients(prev => 
+          prev.includes(ingredient)
+              ? prev.filter(i => i !== ingredient)
+              : [...prev, ingredient]
+      );
+  };
 
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-    const matchesIngredient = selectedIngredient === 'All' || product.ingredients?.includes(selectedIngredient);
+    
+    // AND Logic: Show product if it contains ALL selected ingredients
+    // If no ingredients selected, match all
+    const matchesIngredient = selectedIngredients.length === 0 || 
+                              selectedIngredients.every(ing => product.ingredients?.includes(ing));
+    
     const term = searchTerm.toLowerCase();
     const matchesSearch = product.name.toLowerCase().includes(term) || 
                           product.ingredients?.some(ing => ing.toLowerCase().includes(term));
@@ -67,13 +88,25 @@ export const Shop: React.FC = () => {
           {/* Sidebar Filters */}
           <div className="w-full md:w-64 flex-shrink-0 space-y-6">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-                <Filter className="h-4 w-4" /> Filters
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                    <Filter className="h-4 w-4" /> Filters
+                  </h3>
+                  {(selectedCategory !== 'All' || selectedIngredients.length > 0) && (
+                      <button 
+                        onClick={() => { setSelectedCategory('All'); setSelectedIngredients([]); }}
+                        className="text-xs text-brand-600 hover:text-brand-800 font-medium"
+                      >
+                          Reset
+                      </button>
+                  )}
+              </div>
+              
               <div className="space-y-2">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Category</h4>
                 <button
                   onClick={() => setSelectedCategory('All')}
-                  className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium ${
+                  className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     selectedCategory === 'All'
                       ? 'bg-brand-50 text-brand-700'
                       : 'text-gray-600 hover:bg-gray-50'
@@ -85,7 +118,7 @@ export const Shop: React.FC = () => {
                   <button
                     key={category.id}
                     onClick={() => setSelectedCategory(category.name)}
-                    className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium ${
+                    className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       selectedCategory === category.name
                         ? 'bg-brand-50 text-brand-700'
                         : 'text-gray-600 hover:bg-gray-50'
@@ -98,17 +131,37 @@ export const Shop: React.FC = () => {
 
               {allIngredients.length > 0 && (
                 <div className="mt-6 border-t border-gray-100 pt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-2">Ingredients</h3>
-                    <select 
-                        value={selectedIngredient}
-                        onChange={(e) => setSelectedIngredient(e.target.value)}
-                        className="block w-full rounded-md border-gray-300 text-sm focus:border-brand-500 focus:ring-brand-500 border p-2"
-                    >
-                        <option value="All">Any Ingredient</option>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Ingredients (Select Multiple)</h4>
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
                         {allIngredients.map(ing => (
-                            <option key={ing} value={ing}>{ing}</option>
+                            <label key={ing} className="flex items-center gap-2 cursor-pointer group">
+                                <div className="relative flex items-center">
+                                    <input 
+                                        type="checkbox"
+                                        className="peer h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                                        checked={selectedIngredients.includes(ing)}
+                                        onChange={() => toggleIngredient(ing)}
+                                    />
+                                </div>
+                                <span className={`text-sm group-hover:text-brand-700 transition-colors ${selectedIngredients.includes(ing) ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
+                                    {ing}
+                                </span>
+                            </label>
                         ))}
-                    </select>
+                    </div>
+                    {selectedIngredients.length > 0 && (
+                        <div className="mt-3 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-500 mb-2">{selectedIngredients.length} selected</p>
+                            <div className="flex flex-wrap gap-1">
+                                {selectedIngredients.map(ing => (
+                                    <span key={ing} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-brand-50 text-brand-700 border border-brand-100">
+                                        {ing}
+                                        <button onClick={() => toggleIngredient(ing)} className="ml-1 hover:text-brand-900"><X size={10}/></button>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
               )}
             </div>
@@ -167,7 +220,7 @@ export const Shop: React.FC = () => {
             ) : filteredProducts.length === 0 ? (
                 <div className="text-center py-12">
                     <p className="text-gray-500 text-lg">No fresh goodies found matching your criteria.</p>
-                    <button onClick={() => {setSelectedCategory('All'); setSelectedIngredient('All'); setSearchTerm('')}} className="mt-4 text-brand-600 hover:underline">Clear Filters</button>
+                    <button onClick={() => {setSelectedCategory('All'); setSelectedIngredients([]); setSearchTerm('')}} className="mt-4 text-brand-600 hover:underline">Clear Filters</button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

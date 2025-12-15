@@ -1,11 +1,15 @@
+
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ShoppingBag, Menu, X, Shield, ChevronDown } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ShoppingBag, Menu, X, ChevronDown, Search } from 'lucide-react';
 import { useCart, useAuth } from '../App';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
   const { cartItems } = useCart();
   const { user, login, usersList, canManageStore } = useAuth();
 
@@ -13,6 +17,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'Shop', path: '/shop' },
+    { name: 'Book Table', path: '/book-table' },
     { name: 'About', path: '/about' },
     { name: 'Customer Portal', path: '/account' },
     // Admin link is conditionally added below
@@ -26,16 +31,26 @@ export const Navbar: React.FC = () => {
       login(e.target.value);
   };
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
+      setIsSearchOpen(false);
+      setSearchQuery('');
+    }
+  };
+
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center gap-2">
-               <div className="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">D</span>
-               </div>
-               <span className="font-bold text-xl tracking-tight text-gray-900">Dietanic</span>
+            <Link to="/" className="flex-shrink-0 flex items-center">
+               <img 
+                   src="https://cdn2.zohoecommerce.com/brightened-image-remove-photos.png" 
+                   alt="Dietanic" 
+                   className="h-10 w-auto object-contain"
+               />
             </Link>
           </div>
 
@@ -57,8 +72,32 @@ export const Navbar: React.FC = () => {
 
           <div className="flex items-center gap-4">
             
+            {/* Search Bar */}
+            <div className="relative">
+              {isSearchOpen ? (
+                <form onSubmit={handleSearchSubmit} className="absolute right-0 top-1/2 -translate-y-1/2 w-64">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search products..."
+                    className="w-full pl-4 pr-10 py-1.5 text-sm border border-gray-300 rounded-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onBlur={() => !searchQuery && setIsSearchOpen(false)}
+                  />
+                  <button type="button" onClick={() => setIsSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                </form>
+              ) : (
+                <button onClick={() => setIsSearchOpen(true)} className="p-2 text-gray-400 hover:text-brand-600 transition-colors">
+                  <Search className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
             {/* User Switcher for Demo */}
-            <div className="hidden sm:flex items-center gap-2 border-r border-gray-200 pr-4">
+            <div className={`hidden sm:flex items-center gap-2 border-r border-gray-200 pr-4 ${isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity`}>
                 <div className="flex flex-col items-end">
                     <span className="text-xs font-bold text-gray-900">{user.name}</span>
                     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${

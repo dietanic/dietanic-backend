@@ -1,11 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
-import { SalesService, CatalogService, EngagementService } from '../services/storeService';
+import { SalesService, CatalogService, EngagementService, CustomerService, WalletService } from '../services/storeService';
 import { locateOrderDestination } from '../services/geminiService';
-import { Order, Product } from '../types';
+import { Order, Product, CustomerProfile, WalletTransaction, Invoice } from '../types';
 import { 
   Package, MapPin, User as UserIcon, Heart, Truck, CheckCircle, Clock, 
   Map as MapIcon, ExternalLink, Gift, RotateCcw, MessageCircle, Settings, 
-  LogOut, ChevronRight, AlertCircle 
+  LogOut, ChevronRight, AlertCircle, MessageSquare, Plus, Wallet, CreditCard, ArrowDownLeft, FileText, Search, History
 } from 'lucide-react';
 import { useWishlist, useAuth } from '../App';
 import { ProductCard } from '../components/ProductCard';
@@ -16,8 +17,18 @@ export const Customer: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const { wishlist } = useWishlist();
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'returns' | 'rewards' | 'support' | 'settings'>('overview');
+  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'documents' | 'returns' | 'wallet' | 'rewards' | 'support' | 'settings' | 'wishlist'>('overview');
   
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Wallet State
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeemStatus, setRedeemStatus] = useState<{message: string, type: 'success'|'error'} | null>(null);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
   // Map State
   const [activeMapOrder, setActiveMapOrder] = useState<string | null>(null);
   const [mapData, setMapData] = useState<{title: string, uri: string} | null>(null);
@@ -28,13 +39,17 @@ export const Customer: React.FC = () => {
   const nextRewardTier = 500;
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
         if (user) {
-            const userOrders = await SalesService.getOrdersByUser(user.id);
+            const [userOrders, custProfile] = await Promise.all([
+                SalesService.getOrdersByUser(user.id),
+                CustomerService.ensureCustomerProfile(user)
+            ]);
             setOrders(userOrders);
+            setProfile(custProfile);
         }
     };
-    fetchOrders();
+    fetchData();
   }, [user]);
 
   useEffect(() => {
@@ -48,6 +63,38 @@ export const Customer: React.FC = () => {
     };
     fetchWishlist();
   }, [wishlist]);
+
+  // Fetch Recently Viewed
+  useEffect(() => {
+      const fetchRecentlyViewed = async () => {
+          const recentIds = await EngagementService.getRecentlyViewed();
+          if (recentIds.length > 0) {
+              const allProducts = await CatalogService.getProducts();
+              setRecentlyViewed(allProducts.filter(p => recentIds.includes(p.id)));
+          }
+      };
+      fetchRecentlyViewed();
+  }, []);
+
+  const handleRedeemGiftCard = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!redeemCode.trim()) return;
+      setIsRedeeming(true);
+      setRedeemStatus(null);
+      
+      try {
+          const amount = await WalletService.redeemGiftCard(redeemCode.trim(), user.id);
+          setRedeemStatus({ message: `Success! ₹${amount} added to your wallet.`, type: 'success' });
+          setRedeemCode('');
+          // Refresh profile to show new balance
+          const updatedProfile = await CustomerService.ensureCustomerProfile(user);
+          setProfile(updatedProfile);
+      } catch (err: any) {
+          setRedeemStatus({ message: err.message || 'Failed to redeem code', type: 'error' });
+      } finally {
+          setIsRedeeming(false);
+      }
+  };
 
   const getTrackingNumber = (id: string) => `TRK-${id.slice(-9).toUpperCase()}`;
 
@@ -88,11 +135,40 @@ export const Customer: React.FC = () => {
     setLoadingMap(false);
   };
 
+  // --- Filtering Logic ---
+  const filteredOrders = orders.filter(order => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+          order.id.toLowerCase().includes(q) ||
+          order.items.some(item => item.name.toLowerCase().includes(q)) ||
+          order.status.toLowerCase().includes(q)
+      );
+  });
+
+  const filteredTransactions = (profile?.walletHistory || []).filter(txn => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return txn.description.toLowerCase().includes(q);
+  });
+
+  const filteredInvoices = (profile?.billing.invoices || []).filter(inv => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return inv.id.toLowerCase().includes(q) || inv.status.toLowerCase().includes(q);
+  });
+
+  const filteredWishlist = wishlistProducts.filter(p => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+  });
+
   if (!user) return <div>Loading...</div>;
 
   const NavItem = ({ id, icon: Icon, label }: { id: typeof activeTab, icon: any, label: string }) => (
       <button
-        onClick={() => setActiveTab(id)}
+        onClick={() => { setActiveTab(id); setSearchQuery(''); }}
         className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
             activeTab === id 
             ? 'bg-brand-50 text-brand-700' 
@@ -129,6 +205,9 @@ export const Customer: React.FC = () => {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 space-y-1">
                         <NavItem id="overview" icon={Package} label="Overview" />
                         <NavItem id="orders" icon={Truck} label="My Orders" />
+                        <NavItem id="wishlist" icon={Heart} label="My Wishlist" />
+                        <NavItem id="documents" icon={FileText} label="Documents & Billing" />
+                        <NavItem id="wallet" icon={Wallet} label="Wallet & Cards" />
                         <NavItem id="returns" icon={RotateCcw} label="Returns" />
                         <NavItem id="rewards" icon={Gift} label="My Rewards" />
                         <NavItem id="support" icon={MessageCircle} label="Support Tickets" />
@@ -143,21 +222,36 @@ export const Customer: React.FC = () => {
 
                 {/* Main Content Area */}
                 <div className="flex-1">
+                    {/* Integrated Search Bar for Documents/Orders/Etc */}
+                    {['orders', 'documents', 'wallet', 'support', 'wishlist'].includes(activeTab) && (
+                        <div className="mb-6 relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <input
+                                type="text"
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm"
+                                placeholder={`Search ${activeTab === 'wallet' ? 'transactions' : activeTab === 'documents' ? 'invoices' : activeTab === 'wishlist' ? 'wishlist' : 'orders'}...`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    )}
+
                     {activeTab === 'overview' && (
                         <div className="space-y-6">
                             {/* Stats Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl p-6 text-white shadow-lg">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className="p-2 bg-white/20 rounded-lg"><Gift size={20}/></div>
-                                        <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded">Silver Tier</span>
+                                        <div className="p-2 bg-white/20 rounded-lg"><Wallet size={20}/></div>
+                                        <span className="text-xs font-medium bg-white/20 px-2 py-1 rounded">Available Balance</span>
                                     </div>
-                                    <h3 className="text-3xl font-bold">{rewardsPoints}</h3>
-                                    <p className="text-brand-100 text-sm">Loyalty Points</p>
-                                    <div className="mt-4 w-full bg-black/20 rounded-full h-1.5">
-                                        <div className="bg-white h-1.5 rounded-full" style={{ width: `${(rewardsPoints / nextRewardTier) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-xs mt-2 text-brand-100">{nextRewardTier - rewardsPoints} points to Gold</p>
+                                    <h3 className="text-3xl font-bold">₹{profile?.walletBalance?.toFixed(2) || '0.00'}</h3>
+                                    <p className="text-brand-100 text-sm">Store Credit</p>
+                                    <button onClick={() => setActiveTab('wallet')} className="mt-4 text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors">
+                                        Top Up / View History
+                                    </button>
                                 </div>
 
                                 <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -170,54 +264,174 @@ export const Customer: React.FC = () => {
 
                                 <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><MessageCircle size={20}/></div>
+                                        <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Gift size={20}/></div>
                                     </div>
-                                    <h3 className="text-3xl font-bold text-gray-900">0</h3>
-                                    <p className="text-gray-500 text-sm">Active Support Tickets</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{rewardsPoints}</h3>
+                                    <p className="text-gray-500 text-sm">Loyalty Points</p>
                                 </div>
                             </div>
 
-                            {/* Recent Order */}
+                            {/* Recent Activity */}
                             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                    <h3 className="font-bold text-gray-900">Recent Activity</h3>
+                                    <h3 className="font-bold text-gray-900">Recent Order Activity</h3>
                                     <button onClick={() => setActiveTab('orders')} className="text-sm text-brand-600 font-medium hover:underline">View All</button>
                                 </div>
-                                <div className="p-0">
-                                    {orders.slice(0, 1).map(order => (
-                                        <div key={order.id} className="p-6">
-                                            <div className="flex items-center gap-4 mb-4">
-                                                <div className={`p-2 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                                                    {order.status === 'delivered' ? <CheckCircle size={24}/> : <Truck size={24}/>}
+                                <div className="divide-y divide-gray-100">
+                                    {orders.slice(0, 3).map(order => (
+                                        <div key={order.id} className="p-6 hover:bg-gray-50 transition-colors">
+                                            <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                                        {order.status === 'delivered' ? <CheckCircle size={20}/> : <Truck size={20}/>}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">Order #{order.id.slice(-6)}</p>
+                                                        <p className="text-xs text-gray-500">{new Date(order.date).toLocaleDateString()}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">Order #{order.id.slice(-6)}</p>
-                                                    <p className="text-sm text-gray-500">{getStatusLabel(order.status)}</p>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-gray-900">₹{order.total.toFixed(2)}</div>
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase mt-1 ${
+                                                        order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                                                        order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                        'bg-yellow-100 text-yellow-700'
+                                                    }`}>
+                                                        {getStatusLabel(order.status)}
+                                                    </span>
                                                 </div>
-                                                <div className="ml-auto font-bold">₹{order.total.toFixed(2)}</div>
                                             </div>
-                                            <div className="bg-gray-50 rounded p-3 text-sm text-gray-600">
-                                                {order.items.map(i => i.name).join(', ')}
+                                            <div className="bg-gray-50 rounded p-2 text-xs text-gray-600 truncate">
+                                                {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                                             </div>
                                         </div>
                                     ))}
                                     {orders.length === 0 && <div className="p-6 text-center text-gray-500">No recent activity.</div>}
                                 </div>
                             </div>
+
+                            {/* Recently Viewed Products */}
+                            {recentlyViewed.length > 0 && (
+                                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6">
+                                    <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <History size={18} className="text-gray-500" /> Recently Viewed
+                                    </h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {recentlyViewed.map(product => (
+                                            <Link key={product.id} to={`/product/${product.id}`} className="group block border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                                <div className="aspect-square bg-gray-100 overflow-hidden">
+                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                                </div>
+                                                <div className="p-3">
+                                                    <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                                                    <p className="text-xs text-brand-600 font-bold mt-1">₹{product.price}</p>
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {(activeTab === 'orders' || activeTab === 'overview') && activeTab !== 'overview' && (
+                    {activeTab === 'wallet' && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-bold text-gray-900">Digital Wallet & Gift Cards</h2>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Balance Card */}
+                                <div className="md:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                                        <Wallet size={100} />
+                                    </div>
+                                    <div className="relative z-10">
+                                        <p className="text-gray-400 text-sm font-medium tracking-wider uppercase mb-1">Available Balance</p>
+                                        <h3 className="text-4xl font-bold mb-6">₹{profile?.walletBalance?.toFixed(2) || '0.00'}</h3>
+                                        <div className="flex gap-2 text-xs text-gray-400">
+                                            <span className="flex items-center gap-1"><CreditCard size={12}/> Store Credit</span>
+                                        </div>
+                                        <Link to="/shop" className="mt-8 block text-center w-full bg-white text-gray-900 py-2 rounded font-bold hover:bg-gray-100 transition-colors">
+                                            Buy Gift Card
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                {/* Redeem Card */}
+                                <div className="md:col-span-2 bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                                    <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><ArrowDownLeft size={20} className="text-brand-600"/> Deposit Funds</h3>
+                                    <p className="text-sm text-gray-600 mb-4">Have a gift card code? Enter it below to add funds to your wallet instantly.</p>
+                                    
+                                    <form onSubmit={handleRedeemGiftCard} className="max-w-md">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gift Card Code</label>
+                                        <div className="flex gap-3">
+                                            <input 
+                                                type="text" 
+                                                placeholder="GC-XXXX-XXXX" 
+                                                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-500 outline-none uppercase font-mono"
+                                                value={redeemCode}
+                                                onChange={(e) => setRedeemCode(e.target.value)}
+                                            />
+                                            <button 
+                                                type="submit" 
+                                                disabled={isRedeeming || !redeemCode}
+                                                className="bg-brand-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isRedeeming ? '...' : 'Redeem'}
+                                            </button>
+                                        </div>
+                                        {redeemStatus && (
+                                            <p className={`mt-2 text-sm ${redeemStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {redeemStatus.message}
+                                            </p>
+                                        )}
+                                    </form>
+                                </div>
+                            </div>
+
+                            {/* History */}
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="p-4 border-b border-gray-200 bg-gray-50">
+                                    <h3 className="font-bold text-gray-900">Wallet History</h3>
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {filteredTransactions.length > 0 ? (
+                                        [...filteredTransactions].reverse().map(txn => (
+                                            <div key={txn.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-full ${txn.type === 'deposit' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                                                        {txn.type === 'deposit' ? <ArrowDownLeft size={16}/> : <CreditCard size={16}/>}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">{txn.description}</p>
+                                                        <p className="text-xs text-gray-500">{new Date(txn.date).toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                                <span className={`font-bold ${txn.amount > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                                                    {txn.amount > 0 ? '+' : ''}₹{txn.amount.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-center text-gray-500 italic">No transactions match your search.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'orders' && (
                         <div className="space-y-6">
                              <h2 className="text-xl font-bold text-gray-900">Order History</h2>
-                             {orders.length === 0 ? (
+                             {filteredOrders.length === 0 ? (
                                 <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
                                     <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                                    <p className="text-gray-500">You haven't placed any orders yet.</p>
-                                    <Link to="/shop" className="text-brand-600 font-medium mt-2 inline-block">Start Shopping</Link>
+                                    <p className="text-gray-500">
+                                        {searchQuery ? 'No orders match your search.' : "You haven't placed any orders yet."}
+                                    </p>
+                                    {!searchQuery && <Link to="/shop" className="text-brand-600 font-medium mt-2 inline-block">Start Shopping</Link>}
                                 </div>
                              ) : (
-                                orders.map(order => (
+                                filteredOrders.map(order => (
                                     <div key={order.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                                         <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-wrap justify-between items-center gap-4">
                                             <div className="flex gap-6">
@@ -325,6 +539,68 @@ export const Customer: React.FC = () => {
                         </div>
                     )}
 
+                    {activeTab === 'wishlist' && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-bold text-gray-900">My Wishlist</h2>
+                            {filteredWishlist.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredWishlist.map(product => (
+                                        <ProductCard key={product.id} product={product} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+                                    <Heart className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                                    <p className="text-gray-500">
+                                        {searchQuery ? 'No items match your search.' : "Your wishlist is empty."}
+                                    </p>
+                                    {!searchQuery && <Link to="/shop" className="text-brand-600 font-medium mt-2 inline-block">Explore Menu</Link>}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'documents' && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-bold text-gray-900">Documents & Invoices</h2>
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                                    <h3 className="font-bold text-gray-900">Invoice History</h3>
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {filteredInvoices.length > 0 ? (
+                                        filteredInvoices.map(invoice => (
+                                            <div key={invoice.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="p-2 bg-gray-100 rounded text-gray-600">
+                                                        <FileText size={20}/>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">Invoice #{invoice.id}</p>
+                                                        <p className="text-xs text-gray-500">{new Date(invoice.date).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right flex items-center gap-4">
+                                                    <div>
+                                                        <p className="font-bold text-gray-900">₹{invoice.amount.toFixed(2)}</p>
+                                                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${invoice.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                            {invoice.status}
+                                                        </span>
+                                                    </div>
+                                                    <button className="text-brand-600 hover:text-brand-800 text-sm font-medium flex items-center gap-1">
+                                                        <ExternalLink size={14}/> View
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-center text-gray-500 italic">No documents match your search.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'returns' && (
                         <div className="space-y-6">
                             <h2 className="text-xl font-bold text-gray-900">Returns & Refunds</h2>
@@ -420,7 +696,7 @@ export const Customer: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-brand-50 border border-brand-100 rounded-xl p-6">
                                     <div className="bg-white h-12 w-12 rounded-full flex items-center justify-center shadow-sm mb-4">
-                                        <MessageCircle className="text-brand-600" />
+                                        <MessageSquare className="text-brand-600" />
                                     </div>
                                     <h3 className="font-bold text-gray-900">Live Chat</h3>
                                     <p className="text-sm text-gray-600 mt-2 mb-4">Chat with our nutritionists and support team in real-time.</p>
@@ -442,6 +718,7 @@ export const Customer: React.FC = () => {
                             </div>
                             
                             <h3 className="font-bold text-gray-900 mt-6">Recent Tickets</h3>
+                            {searchQuery && <p className="text-sm text-gray-500 mb-2">Searching for "{searchQuery}"...</p>}
                             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                                 <div className="p-8 text-center text-gray-500 text-sm">
                                     No active support tickets found.
@@ -480,28 +757,6 @@ export const Customer: React.FC = () => {
                                      </button>
                                  </div>
                               </div>
-                              
-                              <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-                                  <h3 className="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
-                                     <Heart className="text-gray-400" size={18} /> Wishlist
-                                  </h3>
-                                   {wishlistProducts.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {wishlistProducts.map(product => (
-                                            <div key={product.id} className="flex gap-3 border border-gray-100 p-2 rounded-lg">
-                                                <img src={product.image} className="h-16 w-16 object-cover rounded" alt=""/>
-                                                <div>
-                                                    <p className="font-medium text-sm line-clamp-1">{product.name}</p>
-                                                    <p className="text-xs text-gray-500">₹{product.price}</p>
-                                                    <Link to={`/product/${product.id}`} className="text-xs text-brand-600 font-medium hover:underline mt-1 block">View</Link>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-500 italic">No items saved.</p>
-                                )}
-                              </div>
                         </div>
                     )}
                 </div>
@@ -510,4 +765,3 @@ export const Customer: React.FC = () => {
     </div>
   );
 };
-import { Plus } from 'lucide-react';

@@ -1,5 +1,31 @@
+
 import { Order, User } from '../types';
 import { sendEmail } from './mailer';
+import { GlobalEventBus, EVENTS } from './eventBus';
+import { IdentityService } from './identity';
+
+// --- Notification Microservice Logic ---
+// Listens to system events and triggers email communications independently
+
+GlobalEventBus.on(EVENTS.ORDER_CREATED, async (order: Order) => {
+    // Fetch user details to send email
+    // In a real microservice, this might be a separate API call or data contained in the event payload
+    const user = await IdentityService.getUserById(order.userId);
+    if (user) {
+        console.log(`🔔 Notification Service: Sending Confirmation for Order ${order.id}`);
+        await sendOrderConfirmationEmail(order, user);
+    }
+});
+
+GlobalEventBus.on(EVENTS.ORDER_UPDATED, async (order: Order) => {
+    const user = await IdentityService.getUserById(order.userId);
+    if (user) {
+        console.log(`🔔 Notification Service: Sending Status Update (${order.status}) for Order ${order.id}`);
+        await sendOrderStatusUpdateEmail(order, user);
+    }
+});
+
+// ----------------------------------------
 
 export const sendOrderConfirmationEmail = async (order: Order, user: User) => {
   const subject = `Order Confirmation #${order.id.slice(-6)}`;

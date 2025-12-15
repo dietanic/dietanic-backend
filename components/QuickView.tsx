@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, ShoppingCart, Star } from 'lucide-react';
+import { X, Check, ShoppingCart, Star, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Product, ProductVariation } from '../types';
 import { useCart } from '../App';
@@ -27,7 +27,11 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
   // Initialize Variations
   useEffect(() => {
     if (isOpen && product.variations && product.variations.length > 0) {
-      setSelectedVariation(product.variations[0]);
+      // Find first in-stock variation or default to first
+      const firstInStock = product.variations.find(v => v.stock > 0);
+      setSelectedVariation(firstInStock || product.variations[0]);
+    } else {
+        setSelectedVariation(undefined);
     }
   }, [isOpen, product]);
 
@@ -38,6 +42,15 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
         setAdded(false);
     }
   }, [isOpen]);
+
+  // Handle Escape Key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
 
   // Fetch Ratings on Open
   useEffect(() => {
@@ -64,9 +77,15 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
     const defaultPlan = product.isSubscription && product.subscriptionPlans ? product.subscriptionPlans[0] : undefined;
     let variationToAdd = selectedVariation;
     
-    // Default to first variation if needed
+    // Default to first variation if needed and valid
     if (!variationToAdd && product.variations && product.variations.length > 0) {
         variationToAdd = product.variations[0];
+    }
+    
+    // Check stock for variation
+    if (variationToAdd && variationToAdd.stock <= 0) {
+        alert("Selected option is out of stock");
+        return;
     }
 
     addToCart(product, defaultPlan, variationToAdd, quantity);
@@ -78,8 +97,10 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
     }, 1000);
   };
 
-  // Determine displayed price
+  // Determine displayed price and stock
   const displayPrice = selectedVariation ? selectedVariation.price : product.price;
+  const currentStock = selectedVariation ? selectedVariation.stock : product.stock;
+  const isOutOfStock = currentStock <= 0;
 
   if (!isOpen) return null;
 
@@ -154,19 +175,25 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
                 <div className="mb-6">
                   <span className="text-sm font-medium text-gray-900 block mb-2">Options:</span>
                   <div className="flex flex-wrap gap-2">
-                    {product.variations.map((v) => (
-                      <button
-                        key={v.id}
-                        onClick={() => setSelectedVariation(v)}
-                        className={`px-3 py-1.5 rounded-md text-sm border transition-all ${
-                          selectedVariation?.id === v.id
-                            ? 'border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600'
-                            : 'border-gray-200 text-gray-700 hover:border-brand-300'
-                        }`}
-                      >
-                        {v.name}
-                      </button>
-                    ))}
+                    {product.variations.map((v) => {
+                      const vStock = v.stock;
+                      const vOutOfStock = vStock <= 0;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => !vOutOfStock && setSelectedVariation(v)}
+                          disabled={vOutOfStock}
+                          className={`px-3 py-1.5 rounded-md text-sm border transition-all relative ${
+                            selectedVariation?.id === v.id
+                              ? 'border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600'
+                              : 'border-gray-200 text-gray-700 hover:border-brand-300'
+                          } ${vOutOfStock ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        >
+                          {v.name}
+                          {vOutOfStock && <span className="absolute -top-1 -right-1 block h-2 w-2 rounded-full bg-red-500" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -176,10 +203,11 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
                   <div>
                     <p className="text-3xl font-bold text-gray-900">₹{displayPrice.toFixed(2)}</p>
                     {product.isSubscription && <span className="text-xs text-brand-600 font-semibold uppercase">Starting price</span>}
+                    {isOutOfStock && <span className="text-xs text-red-600 font-bold flex items-center gap-1 mt-1"><AlertCircle size={12}/> Out of Stock</span>}
                   </div>
                   
                   {/* Quantity */}
-                  <div className="flex items-center border border-gray-300 rounded-md">
+                  <div className={`flex items-center border border-gray-300 rounded-md ${isOutOfStock ? 'opacity-50 pointer-events-none' : ''}`}>
                     <button 
                       className="px-3 py-1 text-gray-600 hover:bg-gray-100 border-r border-gray-300"
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -194,12 +222,17 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
 
                 <button
                   onClick={handleAdd}
+                  disabled={isOutOfStock}
                   className={`w-full flex items-center justify-center gap-2 px-8 py-3.5 rounded-full font-bold shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 ${
-                    added ? 'bg-green-600 text-white shadow-green-200' : 'bg-brand-600 text-white hover:bg-brand-700 shadow-brand-200'
+                    added 
+                      ? 'bg-green-600 text-white shadow-green-200' 
+                      : isOutOfStock
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none hover:translate-y-0'
+                        : 'bg-brand-600 text-white hover:bg-brand-700 shadow-brand-200'
                   }`}
                 >
                   {added ? <Check size={20} strokeWidth={3} /> : <ShoppingCart size={20} strokeWidth={2.5} />}
-                  {added ? 'Added' : 'Add to Cart'}
+                  {added ? 'Added' : (isOutOfStock ? 'Out of Stock' : 'Add to Cart')}
                 </button>
               </div>
               

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
@@ -17,7 +18,7 @@ export const generateProductDescription = async (name: string, ingredients: stri
       contents: prompt,
     });
 
-    return response.text.trim();
+    return response.text?.trim() || "Fresh and delicious ingredients prepared daily.";
   } catch (error) {
     console.error("Error generating description:", error);
     return "A delicious blend of fresh ingredients.";

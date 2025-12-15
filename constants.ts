@@ -1,11 +1,12 @@
 
-import { Product, Category, User, Review, Discount } from './types';
+import { Product, Category, User, Review, Discount, CustomerProfile } from './types';
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: '1', name: 'Signature Salads' },
   { id: '2', name: 'Warm Bowls' },
   { id: '3', name: 'Weekly Subscriptions' },
   { id: '4', name: 'Cold Pressed Juices' },
+  { id: '5', name: 'Gift Cards' },
 ];
 
 export const INITIAL_PRODUCTS: Product[] = [
@@ -14,33 +15,42 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'The Green Goddess',
     description: 'A vibrant mix of kale, spinach, avocado, green apple, and our signature herby dressing.',
     price: 349,
+    cost: 140, // ~40% margin
     category: 'Signature Salads',
     image: 'https://picsum.photos/400/400?random=1',
     isSubscription: false,
     ingredients: ['Kale', 'Spinach', 'Avocado', 'Green Apple', 'Cucumber'],
     stock: 45,
+    sku: 'SLD-GRN-001',
+    lowStockThreshold: 10
   },
   {
     id: '2',
     name: 'Quinoa Power Bowl',
     description: 'Protein-packed quinoa base with roasted sweet potatoes, chickpeas, and tahini drizzle.',
     price: 399,
+    cost: 160,
     category: 'Warm Bowls',
     image: 'https://picsum.photos/400/400?random=2',
     isSubscription: false,
     ingredients: ['Quinoa', 'Sweet Potato', 'Chickpeas', 'Tahini', 'Parsley'],
     stock: 30,
+    sku: 'BWL-QNA-001',
+    lowStockThreshold: 5
   },
   {
     id: '3',
     name: 'Lunch Plan',
     description: 'Fresh salads delivered to your door. Choose the frequency that fits your lifestyle.',
     price: 1500,
+    cost: 800,
     category: 'Weekly Subscriptions',
     image: 'https://picsum.photos/400/400?random=3',
     isSubscription: true,
     ingredients: ['Mixed Salads'],
     stock: 100,
+    sku: 'SUB-LUN-001',
+    lowStockThreshold: 20,
     subscriptionFeatures: ['Free Delivery', 'Menu Rotation', 'Cancel Anytime'],
     subscriptionPlans: [
       { duration: 'weekly', price: 1500 },
@@ -48,6 +58,26 @@ export const INITIAL_PRODUCTS: Product[] = [
       { duration: 'monthly', price: 5500 }
     ]
   },
+  {
+    id: '4',
+    name: 'Dietanic Digital Gift Card',
+    description: 'Give the gift of health. Delivered instantly via email and redeemable for any item or subscription.',
+    price: 500,
+    cost: 0, // Digital product
+    category: 'Gift Cards',
+    image: 'https://picsum.photos/400/400?random=4',
+    isSubscription: false,
+    isGiftCard: true,
+    ingredients: [],
+    stock: 9999,
+    sku: 'GC-DIGITAL',
+    variations: [
+        { id: 'gc_500', name: '₹500', price: 500, stock: 9999, cost: 0 },
+        { id: 'gc_1000', name: '₹1000', price: 1000, stock: 9999, cost: 0 },
+        { id: 'gc_2000', name: '₹2000', price: 2000, stock: 9999, cost: 0 },
+        { id: 'gc_5000', name: '₹5000', price: 5000, stock: 9999, cost: 0 },
+    ]
+  }
 ];
 
 export const INITIAL_DISCOUNTS: Discount[] = [
@@ -92,7 +122,7 @@ export const INITIAL_USERS: User[] = [
     id: 'emp_001',
     name: 'John Doe',
     email: 'john@dietanic.com',
-    role: 'admin',
+    role: 'editor',
     status: 'suspended',
     addresses: [],
     wishlist: []
@@ -103,9 +133,37 @@ export const INITIAL_USERS: User[] = [
     email: 'jane@example.com',
     role: 'customer',
     status: 'active',
-    addresses: [],
+    addresses: [{ street: '45 Park Avenue', city: 'Mumbai', state: 'MH', zip: '400001' }],
     wishlist: []
   }
+];
+
+export const INITIAL_CUSTOMERS: CustomerProfile[] = [
+    {
+        id: 'cust_prof_001',
+        userId: 'cust_002', // Links to Jane Smith
+        phone: '+91 98765 43210',
+        shippingAddress: { street: '45 Park Avenue', city: 'Mumbai', state: 'MH', zip: '400001' },
+        walletBalance: 0,
+        walletHistory: [],
+        subscription: {
+            planName: 'Monthly Lunch Plan',
+            startDate: '2023-10-01',
+            endDate: '2023-11-01',
+            status: 'active',
+            deliverySlot: 'Morning (6-8 AM)',
+            pauseHistory: [
+                { startDate: '2023-10-10', endDate: '2023-10-12', reason: 'Traveling' }
+            ]
+        },
+        billing: {
+            currentMonthAmount: 5500,
+            invoices: [
+                { id: 'inv_001', date: '2023-10-01', amount: 5500, status: 'paid' },
+                { id: 'inv_002', date: '2023-09-01', amount: 5500, status: 'paid' }
+            ]
+        }
+    }
 ];
 
 export const INITIAL_REVIEWS: Review[] = [
