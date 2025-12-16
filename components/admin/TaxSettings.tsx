@@ -2,13 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { SettingsService } from '../../services/storeService';
 import { TaxSettings } from '../../types';
-import { Save, FileText, MapPin, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Save, FileText, MapPin, CheckCircle, AlertTriangle, Lock } from 'lucide-react';
 
 export const TaxSettingsPanel: React.FC = () => {
     const [settings, setSettings] = useState<TaxSettings>({
         isRegistered: false,
         gstin: '',
-        state: 'Maharashtra'
+        state: 'Maharashtra',
+        lockDate: ''
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -29,7 +30,7 @@ export const TaxSettingsPanel: React.FC = () => {
         setMessage(null);
         try {
             await SettingsService.saveTaxSettings(settings);
-            setMessage({ type: 'success', text: 'Tax settings updated successfully.' });
+            setMessage({ type: 'success', text: 'Settings updated successfully.' });
         } catch (error) {
             setMessage({ type: 'error', text: 'Failed to update settings.' });
         } finally {
@@ -47,7 +48,7 @@ export const TaxSettingsPanel: React.FC = () => {
                 </div>
                 <div>
                     <h3 className="text-lg font-bold text-gray-900">Fiscal & Tax Configuration</h3>
-                    <p className="text-sm text-gray-500">Manage GST registration status and store location.</p>
+                    <p className="text-sm text-gray-500">Manage GST registration and audit controls.</p>
                 </div>
             </div>
 
@@ -71,6 +72,25 @@ export const TaxSettingsPanel: React.FC = () => {
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                     </label>
+                </div>
+
+                {/* Lock Transactions Section */}
+                <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
+                    <h4 className="text-sm font-bold text-red-900 mb-2 flex items-center gap-2">
+                        <Lock size={14} /> Transaction Locking
+                    </h4>
+                    <p className="text-xs text-red-700 mb-3">
+                        Prevent unauthorized changes to financial records prior to a specific date (e.g. after tax filing).
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-gray-700">Lock transactions before:</label>
+                        <input 
+                            type="date" 
+                            className="border border-gray-300 rounded p-1.5 text-sm"
+                            value={settings.lockDate || ''}
+                            onChange={(e) => setSettings({...settings, lockDate: e.target.value})}
+                        />
+                    </div>
                 </div>
 
                 {!settings.isRegistered && (

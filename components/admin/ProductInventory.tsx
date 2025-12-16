@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { CatalogService } from '../../services/storeService';
 import { generateProductDescription } from '../../services/geminiService';
 import { Product, SubscriptionPlan, ProductVariation, NutritionalInfo } from '../../types';
-import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity } from 'lucide-react';
+import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity, FileText, Barcode } from 'lucide-react';
 import { useAuth } from '../../App';
 import { InventoryControl } from './InventoryControl';
 
@@ -24,13 +24,14 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '', price: 0, category: 'Signature Salads', ingredients: [],
     image: 'https://picsum.photos/400/400?random=' + Math.floor(Math.random() * 100),
-    isSubscription: false, description: '', stock: 20, sku: '', lowStockThreshold: 5,
+    isSubscription: false, description: '', stock: 20, sku: '', barcode: '', lowStockThreshold: 5,
     subscriptionPlans: [], subscriptionFeatures: [], variations: [],
-    nutritionalInfo: { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    nutritionalInfo: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    itemType: 'good', hsnSacCode: ''
   });
   
   const [hasVariations, setHasVariations] = useState(false);
-  const [tempVariation, setTempVariation] = useState<Partial<ProductVariation>>({ name: '', price: 0, stock: 10, sku: '', lowStockThreshold: 5 });
+  const [tempVariation, setTempVariation] = useState<Partial<ProductVariation>>({ name: '', price: 0, stock: 10, sku: '', barcode: '', lowStockThreshold: 5 });
   const [tempPlanDuration, setTempPlanDuration] = useState<'weekly' | 'bi-weekly' | 'monthly'>('weekly');
   const [tempPlanPrice, setTempPlanPrice] = useState<number>(0);
   const [ingredientInput, setIngredientInput] = useState('');
@@ -45,9 +46,11 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
       setNewProduct({
         name: '', price: 0, category: mode === 'subscriptions' ? 'Weekly Subscriptions' : 'Signature Salads', 
         ingredients: [], image: 'https://picsum.photos/400/400?random=' + Math.floor(Math.random() * 100),
-        isSubscription: mode === 'subscriptions', description: '', stock: 20, sku: '', lowStockThreshold: 5,
+        isSubscription: mode === 'subscriptions', description: '', stock: 20, sku: '', barcode: '', lowStockThreshold: 5,
         subscriptionPlans: [], subscriptionFeatures: [], variations: [],
-        nutritionalInfo: { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        nutritionalInfo: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        itemType: mode === 'subscriptions' ? 'service' : 'good', 
+        hsnSacCode: ''
       });
       setHasVariations(false);
   }, [mode]);
@@ -85,11 +88,14 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
       ingredients: newProduct.ingredients || [],
       stock: finalStock,
       sku: newProduct.sku,
+      barcode: newProduct.barcode, // New
       lowStockThreshold: Number(newProduct.lowStockThreshold),
       subscriptionPlans: newProduct.subscriptionPlans,
       subscriptionFeatures: newProduct.subscriptionFeatures,
       variations: hasVariations ? newProduct.variations : [],
-      nutritionalInfo: newProduct.nutritionalInfo
+      nutritionalInfo: newProduct.nutritionalInfo,
+      itemType: newProduct.itemType,
+      hsnSacCode: newProduct.hsnSacCode
     };
 
     await CatalogService.addProduct(product);
@@ -182,7 +188,14 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">{product.name}</p>
-                                    <p className="text-xs text-gray-500">{product.category} {product.sku ? `• SKU: ${product.sku}` : ''}</p>
+                                    <div className="flex gap-2 items-center">
+                                        <p className="text-xs text-gray-500">{product.category}</p>
+                                        {product.hsnSacCode && (
+                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-300">
+                                                {product.itemType === 'service' ? 'SAC' : 'HSN'}: {product.hsnSacCode}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-6">
@@ -237,8 +250,43 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                                 <input type="text" className="mt-1 block w-full rounded-md border border-gray-300 p-2" 
                                     value={newProduct.sku} onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})} placeholder="SKU-123" />
                             </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 flex items-center gap-1"><Barcode size={12}/> Barcode</label>
+                                <input type="text" className="mt-1 block w-full rounded-md border border-gray-300 p-2" 
+                                    value={newProduct.barcode} onChange={(e) => setNewProduct({...newProduct, barcode: e.target.value})} placeholder="Scanner" />
+                            </div>
                         </div>
                     )}
+
+                    {/* Taxation Classification */}
+                    <div className="md:col-span-2 bg-blue-50 p-4 rounded border border-blue-100">
+                        <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2"><FileText size={14}/> Taxation Classification</h4>
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-blue-900 mb-1">Item Type</label>
+                                <select 
+                                    className="block w-full rounded-md border-gray-300 p-2 text-sm border"
+                                    value={newProduct.itemType} 
+                                    onChange={(e) => setNewProduct({...newProduct, itemType: e.target.value as 'good' | 'service'})}
+                                >
+                                    <option value="good">Goods (HSN)</option>
+                                    <option value="service">Services (SAC)</option>
+                                </select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-blue-900 mb-1">
+                                    {newProduct.itemType === 'good' ? 'HSN Code' : 'SAC Code'}
+                                </label>
+                                <input 
+                                    type="text" 
+                                    className="block w-full rounded-md border-gray-300 p-2 text-sm border uppercase"
+                                    placeholder={newProduct.itemType === 'good' ? 'e.g. 2106' : 'e.g. 9963'}
+                                    value={newProduct.hsnSacCode}
+                                    onChange={(e) => setNewProduct({...newProduct, hsnSacCode: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                    </div>
                     
                     {/* Ingredients & Category */}
                     {mode === 'products' && (
@@ -310,6 +358,7 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                                         <input type="number" placeholder="Price" className="w-16 rounded p-1 border" value={tempVariation.price} onChange={e => setTempVariation({...tempVariation, price: Number(e.target.value)})} />
                                         <input type="number" placeholder="Stock" className="w-16 rounded p-1 border" value={tempVariation.stock} onChange={e => setTempVariation({...tempVariation, stock: Number(e.target.value)})} />
                                         <input type="text" placeholder="SKU" className="w-20 rounded p-1 border" value={tempVariation.sku} onChange={e => setTempVariation({...tempVariation, sku: e.target.value})} />
+                                        <input type="text" placeholder="Barcode" className="w-20 rounded p-1 border" value={tempVariation.barcode} onChange={e => setTempVariation({...tempVariation, barcode: e.target.value})} />
                                         <button type="button" onClick={() => {
                                             if(tempVariation.name) {
                                                 setNewProduct({...newProduct, variations: [...(newProduct.variations||[]), {
@@ -318,9 +367,10 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                                                     price: Number(tempVariation.price), 
                                                     stock: Number(tempVariation.stock),
                                                     sku: tempVariation.sku,
+                                                    barcode: tempVariation.barcode, // New
                                                     lowStockThreshold: 5
                                                 }]});
-                                                setTempVariation({name:'', price:0, stock:10, sku: '', lowStockThreshold: 5});
+                                                setTempVariation({name:'', price:0, stock:10, sku: '', barcode: '', lowStockThreshold: 5});
                                             }
                                         }} className="bg-brand-600 text-white px-3 py-1 rounded">Add</button>
                                     </div>

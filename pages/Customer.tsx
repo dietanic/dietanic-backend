@@ -1,12 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
-import { SalesService, CatalogService, EngagementService, CustomerService, WalletService } from '../services/storeService';
+import { SalesService, CatalogService, EngagementService, CustomerService, WalletService, FinanceService, IdentityService } from '../services/storeService';
 import { locateOrderDestination } from '../services/geminiService';
-import { Order, Product, CustomerProfile, WalletTransaction, Invoice } from '../types';
+import { Order, Product, CustomerProfile, WalletTransaction, Invoice, Quote } from '../types';
 import { 
   Package, MapPin, User as UserIcon, Heart, Truck, CheckCircle, Clock, 
   Map as MapIcon, ExternalLink, Gift, RotateCcw, MessageCircle, Settings, 
-  LogOut, ChevronRight, AlertCircle, MessageSquare, Plus, Wallet, CreditCard, ArrowDownLeft, FileText, Search, History
+  LogOut, ChevronRight, AlertCircle, MessageSquare, Plus, Wallet, CreditCard, ArrowDownLeft, FileText, Search, History, Briefcase, ThumbsUp, XCircle, Check
 } from 'lucide-react';
 import { useWishlist, useAuth } from '../App';
 import { ProductCard } from '../components/ProductCard';
@@ -19,7 +19,8 @@ export const Customer: React.FC = () => {
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'documents' | 'returns' | 'wallet' | 'rewards' | 'support' | 'settings' | 'wishlist'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'business' | 'documents' | 'returns' | 'wallet' | 'rewards' | 'support' | 'settings' | 'wishlist'>('overview');
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,6 +29,14 @@ export const Customer: React.FC = () => {
   const [redeemCode, setRedeemCode] = useState('');
   const [redeemStatus, setRedeemStatus] = useState<{message: string, type: 'success'|'error'} | null>(null);
   const [isRedeeming, setIsRedeeming] = useState(false);
+
+  // Profile Settings State
+  const [settingsForm, setSettingsForm] = useState({
+      name: '',
+      email: '',
+      countryCode: '+91',
+      phone: ''
+  });
 
   // Map State
   const [activeMapOrder, setActiveMapOrder] = useState<string | null>(null);
@@ -41,12 +50,39 @@ export const Customer: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
         if (user) {
-            const [userOrders, custProfile] = await Promise.all([
+            const [userOrders, custProfile, allQuotes] = await Promise.all([
                 SalesService.getOrdersByUser(user.id),
-                CustomerService.ensureCustomerProfile(user)
+                CustomerService.ensureCustomerProfile(user),
+                FinanceService.getQuotes() // Filtering in component for demo
             ]);
             setOrders(userOrders);
             setProfile(custProfile);
+            setQuotes(allQuotes.filter(q => q.customerName.includes(user.name) || q.id.includes(user.id))); // Rough match for demo
+
+            // Initialize Settings Form
+            let phone = custProfile.phone || user.phone || '';
+            let code = '+91';
+            
+            // Simple parser for demo
+            if (phone.includes(' ')) {
+                const parts = phone.split(' ');
+                if (parts.length > 1) {
+                    code = parts[0];
+                    phone = parts.slice(1).join('');
+                }
+            } else if (phone.startsWith('+')) {
+                if(phone.startsWith('+91')) { code = '+91'; phone = phone.slice(3); }
+                else if(phone.startsWith('+1')) { code = '+1'; phone = phone.slice(2); }
+                else if(phone.startsWith('+44')) { code = '+44'; phone = phone.slice(3); }
+                else if(phone.startsWith('+971')) { code = '+971'; phone = phone.slice(4); }
+            }
+
+            setSettingsForm({
+                name: user.name,
+                email: user.email,
+                countryCode: code,
+                phone: phone.replace(/\D/g,'') // Remove non-digits
+            });
         }
     };
     fetchData();
@@ -75,6 +111,23 @@ export const Customer: React.FC = () => {
       };
       fetchRecentlyViewed();
   }, []);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!profile || !user) return;
+      
+      const fullPhone = `${settingsForm.countryCode} ${settingsForm.phone}`;
+      
+      const updatedProfile = { ...profile, phone: fullPhone };
+      const updatedUser = { ...user, name: settingsForm.name, phone: fullPhone };
+
+      // Update both user (identity) and profile (CRM)
+      await CustomerService.updateCustomer(updatedProfile);
+      await IdentityService.updateUser(updatedUser);
+      
+      setProfile(updatedProfile);
+      alert('Profile updated successfully!');
+  };
 
   const handleRedeemGiftCard = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -204,6 +257,7 @@ export const Customer: React.FC = () => {
                 <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 space-y-1">
                         <NavItem id="overview" icon={Package} label="Overview" />
+                        <NavItem id="business" icon={Briefcase} label="Business Hub (B2B)" />
                         <NavItem id="orders" icon={Truck} label="My Orders" />
                         <NavItem id="wishlist" icon={Heart} label="My Wishlist" />
                         <NavItem id="documents" icon={FileText} label="Documents & Billing" />
@@ -309,28 +363,82 @@ export const Customer: React.FC = () => {
                                     {orders.length === 0 && <div className="p-6 text-center text-gray-500">No recent activity.</div>}
                                 </div>
                             </div>
+                        </div>
+                    )}
 
-                            {/* Recently Viewed Products */}
-                            {recentlyViewed.length > 0 && (
-                                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6">
-                                    <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <History size={18} className="text-gray-500" /> Recently Viewed
-                                    </h3>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {recentlyViewed.map(product => (
-                                            <Link key={product.id} to={`/product/${product.id}`} className="group block border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                                                <div className="aspect-square bg-gray-100 overflow-hidden">
-                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                                                </div>
-                                                <div className="p-3">
-                                                    <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-                                                    <p className="text-xs text-brand-600 font-bold mt-1">₹{product.price}</p>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
+                    {/* NEW B2B HUB TAB */}
+                    {activeTab === 'business' && (
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-6">
+                                <h2 className="text-xl font-bold text-gray-900 mb-2">B2B Dashboard</h2>
+                                <p className="text-gray-500 text-sm">Manage commercial quotes and large volume orders.</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                                    <h3 className="font-bold text-gray-900">Active Quotes</h3>
                                 </div>
-                            )}
+                                <div className="divide-y divide-gray-100">
+                                    {quotes.length === 0 ? (
+                                        <div className="p-8 text-center text-gray-500">No active quotes found.</div>
+                                    ) : (
+                                        quotes.map(quote => (
+                                            <div key={quote.id} className="p-6 hover:bg-gray-50 transition-colors">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900">Quote #{quote.id.slice(-6)}</h4>
+                                                        <p className="text-xs text-gray-500">Expired: {new Date(quote.expiryDate).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="block text-xl font-bold text-brand-600">₹{quote.total.toLocaleString()}</span>
+                                                        <span className={`text-xs px-2 py-0.5 rounded uppercase font-bold ${
+                                                            quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                                                            quote.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                                            'bg-gray-100 text-gray-600'
+                                                        }`}>{quote.status}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="bg-gray-50 p-3 rounded-lg mb-4 text-sm">
+                                                    {quote.items.map((i, idx) => (
+                                                        <div key={idx} className="flex justify-between border-b border-gray-200 last:border-0 py-1">
+                                                            <span>{i.quantity}x {i.name}</span>
+                                                            <span className="font-medium">₹{i.price}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {quote.status === 'sent' && (
+                                                    <div className="flex gap-3">
+                                                        <button 
+                                                            onClick={async () => {
+                                                                await FinanceService.convertQuoteToSO(quote.id);
+                                                                alert("Quote Accepted! Order processed.");
+                                                                // Refresh quotes logic needed here
+                                                            }}
+                                                            className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 flex items-center justify-center gap-2"
+                                                        >
+                                                            <ThumbsUp size={16}/> Accept Quote
+                                                        </button>
+                                                        <button className="flex-1 border border-red-200 text-red-600 py-2 rounded-lg font-bold hover:bg-red-50 flex items-center justify-center gap-2">
+                                                            <XCircle size={16}/> Reject
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Negotiation / Comments (Mock) */}
+                                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                                    <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Negotiation</p>
+                                                    <div className="flex gap-2">
+                                                        <input type="text" placeholder="Add a comment or request changes..." className="flex-1 border border-gray-300 rounded px-3 py-1 text-sm"/>
+                                                        <button className="bg-gray-900 text-white px-3 py-1 rounded text-sm">Post</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -416,6 +524,53 @@ export const Customer: React.FC = () => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* NEW SETTINGS TAB */}
+                    {activeTab === 'settings' && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in">
+                            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                <Settings className="text-gray-500"/> Account Settings
+                            </h2>
+                            <form onSubmit={handleUpdateProfile}>
+                                <div className="grid grid-cols-1 gap-6 max-w-lg">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                        <input type="text" value={settingsForm.name} onChange={e => setSettingsForm({...settingsForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-500 outline-none" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                        <input type="email" value={settingsForm.email} disabled className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-50 text-gray-500 cursor-not-allowed" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={settingsForm.countryCode}
+                                                onChange={e => setSettingsForm({...settingsForm, countryCode: e.target.value})}
+                                                className="border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500 outline-none"
+                                            >
+                                                <option value="+91">🇮🇳 +91</option>
+                                                <option value="+1">🇺🇸 +1</option>
+                                                <option value="+44">🇬🇧 +44</option>
+                                                <option value="+971">🇦🇪 +971</option>
+                                            </select>
+                                            <input
+                                                type="tel"
+                                                value={settingsForm.phone}
+                                                onChange={e => setSettingsForm({...settingsForm, phone: e.target.value.replace(/\D/g,'')})}
+                                                placeholder="9876543210"
+                                                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-brand-700 transition-colors w-fit shadow-md">
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     )}
 
@@ -598,165 +753,6 @@ export const Customer: React.FC = () => {
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'returns' && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-900">Returns & Refunds</h2>
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                <div className="text-center py-8">
-                                    <RotateCcw className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                                    <h3 className="text-lg font-medium text-gray-900">No eligible items for return</h3>
-                                    <p className="text-gray-500 mt-2 max-w-md mx-auto">
-                                        You can request a return within 24 hours of delivery if freshness is compromised. 
-                                        Select a delivered order to start a claim.
-                                    </p>
-                                </div>
-                                <div className="mt-6 border-t border-gray-100 pt-6">
-                                    <h4 className="font-medium text-gray-900 mb-4">Eligible Orders</h4>
-                                    {orders.filter(o => o.status === 'delivered').length > 0 ? (
-                                        orders.filter(o => o.status === 'delivered').map(order => (
-                                            <div key={order.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg mb-2">
-                                                <div className="flex items-center gap-3">
-                                                    <img src={order.items[0].image} className="h-10 w-10 rounded object-cover" alt=""/>
-                                                    <div>
-                                                        <p className="font-medium text-sm">Order #{order.id.slice(-6)}</p>
-                                                        <p className="text-xs text-gray-500">Delivered on {new Date(order.date).toLocaleDateString()}</p>
-                                                    </div>
-                                                </div>
-                                                <button className="text-sm font-medium text-brand-600 hover:text-brand-700">Request Return</button>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <p className="text-sm text-gray-500 italic">No delivered orders available for return.</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'rewards' && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-900">Dietanic Rewards</h2>
-                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-8 text-white shadow-xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 bg-white/5 rounded-full blur-3xl"></div>
-                                <div className="relative z-10">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-gray-400 text-sm font-medium tracking-wider uppercase">Current Balance</p>
-                                            <h3 className="text-5xl font-bold mt-2">{rewardsPoints}</h3>
-                                        </div>
-                                        <Gift size={48} className="text-brand-500" />
-                                    </div>
-                                    <p className="mt-2 text-sm text-gray-400">Points expire in 365 days</p>
-                                    <div className="mt-8 pt-8 border-t border-gray-700 flex gap-8">
-                                        <div>
-                                            <p className="text-xs text-gray-500 uppercase">Tier</p>
-                                            <p className="font-bold">Silver Member</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-gray-500 uppercase">Next Reward</p>
-                                            <p className="font-bold">₹500 Voucher (50 pts away)</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <h3 className="font-bold text-gray-900 mt-8">Redeem Points</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {[100, 200, 500].map(val => (
-                                    <div key={val} className="border border-gray-200 p-4 rounded-lg flex justify-between items-center bg-white">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-3 bg-brand-50 text-brand-600 rounded-lg font-bold">₹{val}</div>
-                                            <div>
-                                                <p className="font-medium text-sm">Shopping Voucher</p>
-                                                <p className="text-xs text-gray-500">{val * 10} Points</p>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            disabled={rewardsPoints < val * 10}
-                                            className={`px-3 py-1.5 rounded text-xs font-bold ${
-                                                rewardsPoints >= val * 10 
-                                                ? 'bg-brand-600 text-white hover:bg-brand-700' 
-                                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            }`}
-                                        >
-                                            Redeem
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'support' && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-900">Customer Support</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-brand-50 border border-brand-100 rounded-xl p-6">
-                                    <div className="bg-white h-12 w-12 rounded-full flex items-center justify-center shadow-sm mb-4">
-                                        <MessageSquare className="text-brand-600" />
-                                    </div>
-                                    <h3 className="font-bold text-gray-900">Live Chat</h3>
-                                    <p className="text-sm text-gray-600 mt-2 mb-4">Chat with our nutritionists and support team in real-time.</p>
-                                    <button onClick={() => { /* Trigger widget via global event or focus */ document.querySelector<HTMLElement>('.fixed.bottom-6.right-6 button')?.click() }} className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 w-full">
-                                        Start Conversation
-                                    </button>
-                                </div>
-
-                                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                                    <div className="bg-gray-100 h-12 w-12 rounded-full flex items-center justify-center shadow-sm mb-4">
-                                        <AlertCircle className="text-gray-600" />
-                                    </div>
-                                    <h3 className="font-bold text-gray-900">Report an Issue</h3>
-                                    <p className="text-sm text-gray-600 mt-2 mb-4">Problem with an order? Create a ticket and we'll resolve it.</p>
-                                    <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 w-full">
-                                        Create Ticket
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <h3 className="font-bold text-gray-900 mt-6">Recent Tickets</h3>
-                            {searchQuery && <p className="text-sm text-gray-500 mb-2">Searching for "{searchQuery}"...</p>}
-                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="p-8 text-center text-gray-500 text-sm">
-                                    No active support tickets found.
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'settings' && (
-                        <div className="space-y-6">
-                             <h2 className="text-xl font-bold text-gray-900">Account Settings</h2>
-                             
-                             <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-                                 <h3 className="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
-                                    <MapPin className="text-gray-400" size={18} /> Saved Addresses
-                                 </h3>
-                                 <div className="space-y-4">
-                                     {user.addresses.map((addr, idx) => (
-                                         <div key={idx} className="border border-gray-200 rounded-lg p-4 relative flex justify-between items-center group">
-                                             <div>
-                                                <p className="font-medium text-gray-900 text-sm">{user.name}</p>
-                                                <p className="text-sm text-gray-600">{addr.street}</p>
-                                                <p className="text-sm text-gray-600">{addr.city}, {addr.state} {addr.zip}</p>
-                                             </div>
-                                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                 <button className="text-xs text-brand-600 font-medium hover:underline">Edit</button>
-                                                 <button className="text-xs text-red-600 font-medium hover:underline">Delete</button>
-                                             </div>
-                                             {idx === 0 && (
-                                                 <span className="absolute top-2 right-2 text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">Default</span>
-                                             )}
-                                         </div>
-                                     ))}
-                                     <button className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-gray-500 hover:border-brand-500 hover:text-brand-600 text-sm font-medium transition-colors flex items-center justify-center gap-2">
-                                         <Plus size={16} /> Add New Address
-                                     </button>
-                                 </div>
-                              </div>
                         </div>
                     )}
                 </div>

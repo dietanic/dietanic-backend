@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { IdentityService } from '../../services/storeService';
 import { sendPasswordResetEmail } from '../../services/emailService';
 import { User } from '../../types';
-import { User as UserIcon, Mail, Trash2, Plus, Shield, CheckCircle, Ban, Users, Eye, Tag } from 'lucide-react';
+import { User as UserIcon, Mail, Trash2, Plus, Shield, CheckCircle, Ban, Users, Eye, Tag, Phone } from 'lucide-react';
 import { useAuth } from '../../App';
 import { CustomerDetail } from './CustomerDetail';
 
@@ -18,12 +18,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     
     const defaultRole = viewMode === 'internal' ? 'editor' : 'customer';
-    const [newUser, setNewUser] = useState<Partial<User>>({ 
+    const [newUser, setNewUser] = useState<Partial<User> & { countryCode?: string, phoneNumber?: string }>({ 
         name: '', 
         email: '', 
         role: defaultRole, 
         status: 'active',
-        priceTier: 'standard'
+        priceTier: 'standard',
+        countryCode: '+91',
+        phoneNumber: ''
     });
 
     useEffect(() => {
@@ -34,7 +36,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
             email: '', 
             role: viewMode === 'internal' ? 'editor' : 'customer', 
             status: 'active',
-            priceTier: 'standard'
+            priceTier: 'standard',
+            countryCode: '+91',
+            phoneNumber: ''
         });
         setIsAdding(false);
         setSelectedUser(null);
@@ -52,10 +56,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!newUser.name || !newUser.email) return;
+        
+        const fullPhone = newUser.phoneNumber ? `${newUser.countryCode || '+91'} ${newUser.phoneNumber}` : '';
+
         const u: User = {
             id: (viewMode === 'internal' ? 'emp_' : 'cust_') + Date.now(),
             name: newUser.name,
             email: newUser.email,
+            phone: fullPhone,
             role: newUser.role || defaultRole,
             status: newUser.status || 'active',
             addresses: [],
@@ -64,7 +72,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
         };
         await IdentityService.addUser(u);
         setIsAdding(false);
-        setNewUser({ name: '', email: '', role: defaultRole, status: 'active', priceTier: 'standard' });
+        setNewUser({ name: '', email: '', role: defaultRole, status: 'active', priceTier: 'standard', countryCode: '+91', phoneNumber: '' });
         loadUsers();
     };
 
@@ -113,7 +121,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
 
             {isAdding && (
                 <form onSubmit={handleAddUser} className="mb-6 p-4 bg-gray-50 rounded border border-gray-200 animate-fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
                             <input className="w-full border-gray-300 rounded-md shadow-sm text-sm p-2 border" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} required placeholder="John Doe" />
@@ -122,6 +130,31 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
                             <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
                             <input className="w-full border-gray-300 rounded-md shadow-sm text-sm p-2 border" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} required type="email" placeholder="john@example.com" />
                         </div>
+                        
+                        {/* Phone Number Input */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                            <div className="flex gap-2">
+                                <select 
+                                    className="border border-gray-300 rounded-md shadow-sm text-sm p-2 bg-white"
+                                    value={newUser.countryCode}
+                                    onChange={e => setNewUser({...newUser, countryCode: e.target.value})}
+                                >
+                                    <option value="+91">+91</option>
+                                    <option value="+1">+1</option>
+                                    <option value="+44">+44</option>
+                                    <option value="+971">+971</option>
+                                </select>
+                                <input 
+                                    className="w-full border-gray-300 rounded-md shadow-sm text-sm p-2 border" 
+                                    value={newUser.phoneNumber} 
+                                    onChange={e => setNewUser({...newUser, phoneNumber: e.target.value})} 
+                                    type="tel" 
+                                    placeholder="9876543210" 
+                                />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>
                             <select 
@@ -153,7 +186,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
                                 </select>
                             </div>
                         )}
-                        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700">Save User</button>
+                        <div className="flex items-end">
+                            <button type="submit" className="w-full bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 h-[38px]">Save User</button>
+                        </div>
                     </div>
                 </form>
             )}
@@ -179,6 +214,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">{u.name}</div>
                                         <div className="text-xs text-gray-500">{u.email}</div>
+                                        {u.phone && <div className="text-[10px] text-gray-400 flex items-center gap-1"><Phone size={10}/> {u.phone}</div>}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">

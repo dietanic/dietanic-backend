@@ -1,5 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
+import { KnowledgeService } from './knowledge';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
@@ -9,8 +10,28 @@ export const askNutritionist = async (question: string): Promise<string> => {
   }
 
   try {
+    // 1. Fetch Business Context (Approved Knowledge Base)
+    const context = await KnowledgeService.getApprovedContent();
+
     const model = 'gemini-2.5-flash';
-    const prompt = `You are a helpful nutritionist for a salad brand called Dietanic. Answer the following customer question briefly and politely: "${question}"`;
+    
+    // 2. Construct Prompt with Context Enforcement
+    const prompt = `
+    You are 'Dietanic AI', a customer support agent for a salad subscription brand.
+    
+    BUSINESS KNOWLEDGE BASE:
+    ${context}
+    
+    INSTRUCTIONS:
+    1. Answer the user's question using ONLY the information provided in the KNOWLEDGE BASE above.
+    2. If the answer is found in the KNOWLEDGE BASE, provide a concise and helpful response.
+    3. If the answer is NOT found in the KNOWLEDGE BASE, apologize and say: "I don't have the information for that specific query. I have notified a human agent to assist you shortly."
+    4. Do not make up information. Do not hallucinate policies.
+    5. Be polite and professional.
+    6. Always reply in the same language the user asked the question in.
+
+    USER QUESTION: "${question}"
+    `;
 
     const response = await ai.models.generateContent({
       model: model,

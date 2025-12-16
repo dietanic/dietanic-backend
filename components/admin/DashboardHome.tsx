@@ -1,8 +1,9 @@
 
-import React from 'react';
-import { DollarSign, ShoppingCart, Box, Users, Activity, MessageSquare, Plus, Package, Tag, ArrowUpRight, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { DollarSign, ShoppingCart, Box, Users, Activity, MessageSquare, Plus, Package, Tag, ArrowUpRight, AlertCircle, Zap } from 'lucide-react';
 import { Product, Order, User, ChatSession } from '../../types';
 import { SmartSearch } from './SmartSearch';
+import { EngagementService } from '../../services/storeService';
 
 interface DashboardHomeProps {
   products: Product[];
@@ -14,11 +15,16 @@ interface DashboardHomeProps {
 }
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({ products, orders, users, sessions, isAdmin, onNavigate }) => {
+  const [trends, setTrends] = useState<any[]>([]);
   const totalSales = orders.reduce((acc, order) => acc + order.total, 0);
   const totalOrders = orders.length;
   
   // Calculate potential abandoned carts (Completed * 2.3 is industry average approx)
   const estimatedAbandoned = Math.round(totalOrders * 2.33);
+
+  useEffect(() => {
+      EngagementService.getLiveTrends().then(setTrends);
+  }, []);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -29,6 +35,34 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ products, orders, 
                 <p className="text-gray-500">Find anything or take quick actions instantly.</p>
             </div>
             <SmartSearch orders={orders} users={users} onNavigate={onNavigate} />
+        </div>
+
+        {/* LIVE PULSE WIDGET (NEW) */}
+        <div className="bg-gray-900 rounded-xl p-6 text-white shadow-lg mb-6">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold flex items-center gap-2"><Activity className="text-brand-400" /> Live Business Pulse</h3>
+                <span className="text-xs bg-gray-800 px-2 py-1 rounded text-gray-400">Real-time analysis</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {trends.map((trend, idx) => (
+                    <div key={idx} className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs text-gray-400 uppercase font-bold">{trend.type} Trend</p>
+                            <p className="font-bold text-lg">{trend.topic}</p>
+                        </div>
+                        <div className="text-right">
+                            <div className={`text-xs font-bold px-2 py-1 rounded mb-1 inline-block ${
+                                trend.volume === 'High' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'
+                            }`}>
+                                {trend.volume} Vol
+                            </div>
+                            <p className={`text-xs ${trend.sentiment === 'Negative' ? 'text-red-400' : 'text-green-400'}`}>
+                                {trend.sentiment} Sentiment
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

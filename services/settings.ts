@@ -5,7 +5,8 @@ import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage
 const DEFAULT_TAX_SETTINGS: TaxSettings = {
     isRegistered: false,
     gstin: '',
-    state: 'Maharashtra'
+    state: 'Maharashtra',
+    lockDate: undefined
 };
 
 export const SettingsService = {

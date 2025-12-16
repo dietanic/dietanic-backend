@@ -1,70 +1,25 @@
 
 import { User } from '../types';
 import { MOCK_USER } from '../constants';
-import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
+import { STORAGE_KEYS, DB, delay, getLocalStorage } from './storage';
 import { GlobalEventBus, EVENTS } from './eventBus';
 
+// Microservice: Identity & Access Management
 export const IdentityService = {
   getCurrentUser: async (): Promise<User> => {
-    await delay(100); // Fast response for auth check
+    await delay(100);
     const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-    const storedId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    
-    if (storedId) {
-        const found = users.find(u => u.id === storedId);
-        if (found) return found;
-    }
-    return users.find(u => u.id === MOCK_USER.id) || MOCK_USER;
+    const id = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+    return users.find(u => u.id === id) || users.find(u => u.id === MOCK_USER.id) || MOCK_USER;
   },
-
-  // Sync version specifically for initial app load state to prevent flicker
   getCurrentUserSync: (): User => {
     const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-    const storedId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    return users.find(u => u.id === storedId) || users.find(u => u.id === MOCK_USER.id) || MOCK_USER;
+    return users.find(u => u.id === localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID)) || MOCK_USER;
   },
-
-  getUserById: async (userId: string): Promise<User | undefined> => {
-      // Internal helper for other services
-      const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-      return users.find(u => u.id === userId);
-  },
-
-  switchUserSession: async (userId: string): Promise<User> => {
-    await delay(300);
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, userId);
-    return IdentityService.getCurrentUser();
-  },
-
-  getUsers: async (): Promise<User[]> => {
-    await delay();
-    return getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-  },
-
-  addUser: async (user: User): Promise<void> => {
-    await delay();
-    const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-    users.push(user);
-    setLocalStorage(STORAGE_KEYS.USERS, users);
-    
-    console.log(`🔐 Identity Microservice: User ${user.name} created. Emitting event...`);
-    GlobalEventBus.emit(EVENTS.USER_REGISTERED, user);
-  },
-
-  updateUser: async (updatedUser: User): Promise<void> => {
-    await delay();
-    const users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-    const index = users.findIndex(u => u.id === updatedUser.id);
-    if (index !== -1) {
-      users[index] = updatedUser;
-      setLocalStorage(STORAGE_KEYS.USERS, users);
-    }
-  },
-
-  deleteUser: async (userId: string): Promise<void> => {
-    await delay();
-    let users = getLocalStorage<User[]>(STORAGE_KEYS.USERS, []);
-    users = users.filter(u => u.id !== userId);
-    setLocalStorage(STORAGE_KEYS.USERS, users);
-  }
+  getUserById: (id: string) => DB.getById<User>(STORAGE_KEYS.USERS, id, []),
+  switchUserSession: async (id: string) => { await delay(200); localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, id); return IdentityService.getCurrentUser(); },
+  getUsers: () => DB.getAll<User>(STORAGE_KEYS.USERS, []),
+  addUser: async (u: User) => { await DB.add(STORAGE_KEYS.USERS, u, []); GlobalEventBus.emit(EVENTS.USER_REGISTERED, u); },
+  updateUser: (u: User) => DB.update(STORAGE_KEYS.USERS, u, []),
+  deleteUser: (id: string) => DB.delete(STORAGE_KEYS.USERS, id, [])
 };

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
 import { Shop } from './pages/Shop';
@@ -11,6 +11,10 @@ import { POS } from './pages/POS';
 import { Kitchen } from './pages/Kitchen';
 import { BookTable } from './pages/BookTable';
 import { ProductDetail } from './pages/ProductDetail';
+import { Terms } from './pages/Terms';
+import { ChainCommand } from './pages/ChainCommand';
+import { FieldAgent } from './pages/FieldAgent';
+import { VendorPortal } from './pages/VendorPortal'; // New
 import { TrackCommWidget } from './components/TrackCommWidget';
 import { NewsletterPopup } from './components/NewsletterPopup';
 import { ComparisonProvider } from './components/ComparisonSystem';
@@ -24,6 +28,7 @@ interface AuthContextType {
   usersList: User[];
   isAdmin: boolean;
   isEditor: boolean;
+  isDriver: boolean;
   canManageStore: boolean;
   isLoading: boolean;
 }
@@ -213,12 +218,13 @@ const App: React.FC = () => {
   // Derived Auth State
   const isAdmin = currentUser?.role === 'admin';
   const isEditor = currentUser?.role === 'editor';
+  const isDriver = currentUser?.role === 'driver';
   const canManageStore = isAdmin || isEditor;
 
   if (isLoadingAuth || !currentUser) return <div className="min-h-screen flex items-center justify-center text-brand-600">Loading Application...</div>;
 
   return (
-    <AuthContext.Provider value={{ user: currentUser, login: handleLogin, usersList, isAdmin, isEditor, canManageStore, isLoading: isLoadingAuth }}>
+    <AuthContext.Provider value={{ user: currentUser, login: handleLogin, usersList, isAdmin, isEditor, isDriver, canManageStore, isLoading: isLoadingAuth }}>
       <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, updateQuantity, clearCart }}>
         <WishlistContext.Provider value={{ wishlist, toggleWishlist, isInWishlist }}>
           <ComparisonProvider>
@@ -234,9 +240,16 @@ const App: React.FC = () => {
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/account" element={<Customer />} />
                     <Route path="/book-table" element={<BookTable />} />
+                    <Route path="/terms" element={<Terms />} />
                     {/* Operations Routes */}
                     <Route path="/pos" element={canManageStore ? <POS /> : <Navigate to="/" />} />
                     <Route path="/kitchen" element={canManageStore ? <Kitchen /> : <Navigate to="/" />} />
+                    {/* Delivery Route */}
+                    <Route path="/delivery" element={isDriver ? <FieldAgent /> : <Navigate to="/" />} />
+                    {/* New Chain Command Route */}
+                    <Route path="/chain-command" element={isAdmin ? <ChainCommand /> : <Navigate to="/admin" />} />
+                    {/* Vendor Portal */}
+                    <Route path="/vendor-portal" element={<VendorPortal />} />
                     <Route path="/about" element={<Navigate to="/" />} />
                   </Routes>
                 </main>
@@ -250,14 +263,16 @@ const App: React.FC = () => {
                       <div>
                         <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
                         <ul className="space-y-2 text-sm text-gray-400">
-                            <li><a href="#/shop" className="hover:text-white">Shop</a></li>
-                            <li><a href="#/account" className="hover:text-white">Account</a></li>
-                            <li><a href="#/admin" className="hover:text-white">Admin</a></li>
+                            <li><Link to="/shop" className="hover:text-white">Shop</Link></li>
+                            <li><Link to="/account" className="hover:text-white">Account</Link></li>
+                            <li><Link to="/admin" className="hover:text-white">Admin</Link></li>
+                            <li><Link to="/vendor-portal" className="hover:text-white">Vendor Portal</Link></li>
+                            <li><Link to="/terms" className="hover:text-white">Terms & Conditions</Link></li>
                         </ul>
                       </div>
                       <div>
                         <h4 className="text-lg font-semibold mb-4">Contact</h4>
-                        <p className="text-gray-400 text-sm">support@dietanic.com</p>
+                        <p className="text-gray-400 text-sm">support@dietanic.co</p>
                         <p className="text-gray-400 text-sm">1-800-SALAD-GO</p>
                         <p className="text-gray-500 text-xs mt-4">Fiscal Reg: GSTIN27AAAAA0000A1Z5</p>
                       </div>

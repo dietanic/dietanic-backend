@@ -1,4 +1,5 @@
 
+
 export * from './storage';
 export * from './eventBus';
 export * from './catalog';
@@ -13,4 +14,12 @@ export * from './marketing';
 export * from './wallet';
 export * from './settings';
 export * from './finance';
-export * from './apiGateway'; // New Export
+export * from './security'; 
+export * from './apiGateway';
+export * from './chainService';
+export * from './knowledge';
+export * from './payroll';
+export * from './delivery';
+export * from './assets';
+export * from './cro';
+export * from './analytics'; // Added missing export

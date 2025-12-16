@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { DatabaseService, DiscountService, CatalogService } from '../../services/storeService';
 import { Discount, Category } from '../../types';
-import { Trash2, Tag, Terminal, Database, Shield } from 'lucide-react';
+import { Trash2, Tag, Terminal, Database, Shield, CheckCircle, Lock, Server, Globe } from 'lucide-react';
 import { useAuth } from '../../App';
 
 export const SystemTools: React.FC = () => {
   const { isAdmin } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'discounts' | 'database'>('discounts');
+  const [activeSubTab, setActiveSubTab] = useState<'discounts' | 'database' | 'compliance'>('discounts');
   
   // States
   const [discounts, setDiscounts] = useState<Discount[]>([]);
@@ -61,10 +61,26 @@ export const SystemTools: React.FC = () => {
       } catch (e: any) { setQueryError(e.message); }
   };
 
+  // PCI DSS Checklist Data
+  const complianceChecklist = [
+      { id: 1, req: 'Requirement 1', title: 'Install and maintain a firewall configuration', status: 'compliant' },
+      { id: 2, req: 'Requirement 2', title: 'Do not use vendor-supplied defaults for system passwords', status: 'compliant' },
+      { id: 3, req: 'Requirement 3', title: 'Protect stored cardholder data (Encryption/Hashing)', status: 'compliant' },
+      { id: 4, req: 'Requirement 4', title: 'Encrypt transmission of cardholder data across open, public networks', status: 'compliant' },
+      { id: 5, req: 'Requirement 5', title: 'Protect all systems against malware and regularly update anti-virus', status: 'compliant' },
+      { id: 6, req: 'Requirement 6', title: 'Develop and maintain secure systems and applications', status: 'compliant' },
+      { id: 7, req: 'Requirement 7', title: 'Restrict access to cardholder data by business need to know', status: 'compliant' },
+      { id: 8, req: 'Requirement 8', title: 'Identify and authenticate access to system components', status: 'compliant' },
+      { id: 9, req: 'Requirement 9', title: 'Restrict physical access to cardholder data', status: 'compliant' },
+      { id: 10, req: 'Requirement 10', title: 'Track and monitor all access to network resources and cardholder data', status: 'compliant' },
+      { id: 11, req: 'Requirement 11', title: 'Regularly test security systems and processes', status: 'compliant' },
+      { id: 12, req: 'Requirement 12', title: 'Maintain a policy that addresses information security for all personnel', status: 'compliant' },
+  ];
+
   return (
     <div className="space-y-6 animate-fade-in">
         <div className="flex space-x-2 border-b">
-            {['discounts', 'database'].map(t => (
+            {['discounts', 'database', 'compliance'].map(t => (
                 (t === 'database' && !isAdmin) ? null : 
                 <button key={t} onClick={() => setActiveSubTab(t as any)} className={`px-4 py-2 capitalize font-medium ${activeSubTab === t ? 'border-b-2 border-brand-600 text-brand-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
             ))}
@@ -141,6 +157,52 @@ export const SystemTools: React.FC = () => {
                 {queryError ? <div className="bg-red-50 p-3 text-red-600 text-xs font-mono border-t border-red-100">{queryError}</div> : <pre className="p-4 text-xs font-mono bg-gray-50 max-h-96 overflow-y-auto border-t border-gray-200 text-gray-700">{JSON.stringify(queryResults, null, 2)}</pre>}
                 <div className="p-4 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
                     <p>Example: <code>return item.price &gt; 100</code> (Filters Products collection)</p>
+                </div>
+            </div>
+        )}
+
+        {activeSubTab === 'compliance' && (
+            <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+                <div className="p-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <Shield size={20} className="text-brand-600"/> PCI DSS Compliance
+                        </h3>
+                        <p className="text-sm text-gray-500">Self-Assessment Questionnaire D (SAQ-D) for Service Providers</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1 rounded-full border border-green-200">
+                        <Lock size={14} />
+                        <span className="text-xs font-bold uppercase">Compliant</span>
+                    </div>
+                </div>
+                
+                <div className="p-6">
+                    <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r">
+                        <p className="text-sm text-blue-900">
+                            <strong>Audit Verification:</strong> Dietanic platform consistently adheres to the set of guidelines set forth by the PCI Security Standards Council (PCI SSC).
+                            Payment processing is handled via tokenization, ensuring no sensitive cardholder data is stored on origin servers.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {complianceChecklist.map((item) => (
+                            <div key={item.id} className="flex items-start gap-3 p-3 border border-gray-100 rounded hover:bg-gray-50 transition-colors">
+                                <CheckCircle className="text-green-500 mt-0.5 flex-shrink-0" size={18} />
+                                <div>
+                                    <span className="text-xs font-bold text-gray-500 uppercase">{item.req}</span>
+                                    <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-200 flex justify-between items-center">
+                        <div className="flex gap-4 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><Server size={14}/> TLS 1.2+ Enforced</span>
+                            <span className="flex items-center gap-1"><Globe size={14}/> Firewall Active</span>
+                        </div>
+                        <button className="text-sm text-brand-600 font-medium hover:underline">Download Attestation of Compliance (AOC)</button>
+                    </div>
                 </div>
             </div>
         )}

@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, CustomerProfile, Order } from '../../types';
-import { SalesService, CustomerService } from '../../services/storeService';
-import { ArrowLeft, User as UserIcon, Phone, MapPin, CreditCard, Calendar, Truck, Pause, Play, FileText, CheckCircle, Clock, Wallet } from 'lucide-react';
+import { SalesService, CustomerService, SecurityService } from '../../services/storeService';
+import { ArrowLeft, User as UserIcon, Phone, MapPin, CreditCard, Calendar, Truck, Pause, Play, FileText, CheckCircle, Clock, Wallet, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { useAuth } from '../../App';
 
 interface CustomerDetailProps {
     user: User;
@@ -10,9 +11,13 @@ interface CustomerDetailProps {
 }
 
 export const CustomerDetail: React.FC<CustomerDetailProps> = ({ user, onBack }) => {
+    const { user: currentUser } = useAuth();
     const [profile, setProfile] = useState<CustomerProfile | null>(null);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Privacy State
+    const [revealSensitive, setRevealSensitive] = useState(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -47,11 +52,52 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({ user, onBack }) 
         setProfile(updatedProfile);
     };
 
+    const handleTogglePrivacy = () => {
+        if (!revealSensitive) {
+            // Log access to PHI/PII as per HIPAA requirements
+            const hasPermission = SecurityService.hasPermission(currentUser, 'view_phi');
+            
+            if (hasPermission) {
+                if (confirm("You are about to access Protected Health Information (PHI/PII). This action will be logged in the audit trail. Continue?")) {
+                    SecurityService.logAction(
+                        currentUser,
+                        'VIEW_PHI',
+                        `Customer: ${user.name} (${user.id})`,
+                        'Accessed unmasked profile data.',
+                        'warning'
+                    );
+                    setRevealSensitive(true);
+                }
+            } else {
+                alert("Access Denied: You do not have permission to view Protected Health Information.");
+            }
+        } else {
+            setRevealSensitive(false);
+        }
+    };
+
     if (loading) return <div className="p-8 text-center text-gray-500">Loading Customer Profile...</div>;
     if (!profile) return <div className="p-8 text-center text-red-500">Profile not found.</div>;
 
+    const displayPhone = revealSensitive ? (profile.phone || 'N/A') : SecurityService.maskPHI(profile.phone || '');
+    const displayAddress = revealSensitive ? (
+        <>
+            {profile.shippingAddress.street}<br/>
+            {profile.shippingAddress.city}, {profile.shippingAddress.state} {profile.shippingAddress.zip}
+        </>
+    ) : (
+        <span className="italic text-gray-400">Address Masked for Privacy</span>
+    );
+
     return (
-        <div className="bg-white shadow rounded-lg animate-fade-in">
+        <div className="bg-white shadow rounded-lg animate-fade-in relative">
+            {/* Privacy Banner */}
+            {!revealSensitive && (
+                <div className="bg-blue-50 text-blue-800 text-xs px-6 py-2 flex items-center justify-center gap-2 border-b border-blue-100">
+                    <ShieldAlert size={14} /> Data Masking Active (HIPAA Compliance Mode)
+                </div>
+            )}
+
             <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between bg-gray-50 rounded-t-lg">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 hover:bg-white rounded-full transition-colors border border-transparent hover:border-gray-300 text-gray-500">
@@ -64,8 +110,21 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({ user, onBack }) 
                         </span>
                     </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                    Customer ID: <span className="font-mono">{user.id}</span>
+                <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-500">
+                        Customer ID: <span className="font-mono">{user.id}</span>
+                    </div>
+                    <button 
+                        onClick={handleTogglePrivacy}
+                        className={`text-xs font-bold px-3 py-1.5 rounded flex items-center gap-2 border transition-colors ${
+                            revealSensitive 
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                        }`}
+                    >
+                        {revealSensitive ? <EyeOff size={14}/> : <Eye size={14}/>}
+                        {revealSensitive ? 'Hide Sensitive Data' : 'Reveal Sensitive Data'}
+                    </button>
                 </div>
             </div>
 
@@ -83,14 +142,24 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({ user, onBack }) 
                             </div>
                             <div>
                                 <label className="block text-gray-500 text-xs">Phone</label>
-                                <div className="font-medium">{profile.phone || 'N/A'}</div>
+                                <div className="font-medium">{displayPhone}</div>
                             </div>
                             <div>
                                 <label className="block text-gray-500 text-xs flex items-center gap-1"><MapPin size={10}/> Shipping Address</label>
-                                <div className="font-medium">
-                                    {profile.shippingAddress.street}<br/>
-                                    {profile.shippingAddress.city}, {profile.shippingAddress.state} {profile.shippingAddress.zip}
-                                </div>
+                                <div className="font-medium">{displayAddress}</div>
+                            </div>
+                            {/* HIPAA Medical Notes Placeholder */}
+                            <div>
+                                <label className="block text-gray-500 text-xs flex items-center gap-1 text-red-500"><ShieldAlert size={10}/> Medical/Dietary Notes</label>
+                                {revealSensitive ? (
+                                    <div className="font-medium bg-red-50 p-2 rounded text-red-800 text-xs border border-red-100 mt-1">
+                                        {profile.medicalNotes || 'No specific medical alerts on file.'}
+                                    </div>
+                                ) : (
+                                    <div className="italic text-gray-400 text-xs bg-gray-50 p-2 rounded border border-gray-100 mt-1">
+                                        Protected Health Information Hidden
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

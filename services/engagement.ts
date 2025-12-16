@@ -1,6 +1,8 @@
 
-import { Review, ChatSession, ChatMessage, Visitor } from '../types';
+import { Review, ChatSession, ChatMessage, Visitor, Product, Order } from '../types';
 import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
+import { SalesService } from './sales';
+import { CatalogService } from './catalog';
 
 export const chatEvents = new EventTarget();
 
@@ -31,7 +33,6 @@ export const EngagementService = {
   },
 
   saveWishlist: async (list: string[]): Promise<void> => {
-    // Background sync, no await needed mostly
     setLocalStorage(STORAGE_KEYS.WISHLIST, list);
   },
 
@@ -40,14 +41,9 @@ export const EngagementService = {
       const MAX_ITEMS = 6;
       const key = 'dietanic_recently_viewed';
       let recent = getLocalStorage<string[]>(key, []);
-      
-      // Remove if exists (to bump to top)
       recent = recent.filter(id => id !== productId);
-      // Add to front
       recent.unshift(productId);
-      // Limit size
       if (recent.length > MAX_ITEMS) recent.pop();
-      
       setLocalStorage(key, recent);
   },
 
@@ -63,7 +59,6 @@ export const EngagementService = {
   },
   
   getMessages: async (sessionId: string): Promise<ChatMessage[]> => {
-      // Fast fetch for chat
       const m = getLocalStorage<ChatMessage[]>(STORAGE_KEYS.MESSAGES, []);
       return m.filter(msg => msg.sessionId === sessionId).sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   },
@@ -81,7 +76,8 @@ export const EngagementService = {
             status: 'active',
             lastMessage: 'Session started',
             lastActive: new Date().toISOString(),
-            unreadCount: 0
+            unreadCount: 0,
+            isAiHandled: true
         };
         sessions.push(session);
         setLocalStorage(STORAGE_KEYS.CHATS, sessions);
@@ -103,12 +99,11 @@ export const EngagementService = {
 
   submitFeedback: async (sessionId: string, rating: number): Promise<void> => {
       await delay(200);
-      // In a real app, we'd store this feedback linked to the session
       console.log(`Feedback received for session ${sessionId}: ${rating} stars`);
   },
 
   sendMessage: async (sessionId: string, text: string, sender: 'user' | 'agent' | 'system'): Promise<ChatMessage> => {
-    await delay(100); // Fast send
+    await delay(100); 
     const messages = getLocalStorage<ChatMessage[]>(STORAGE_KEYS.MESSAGES, []);
     
     const newMessage: ChatMessage = {
@@ -123,7 +118,6 @@ export const EngagementService = {
     messages.push(newMessage);
     setLocalStorage(STORAGE_KEYS.MESSAGES, messages);
 
-    // Update Session Metadata
     const sessions = getLocalStorage<ChatSession[]>(STORAGE_KEYS.CHATS, []);
     const sessionIdx = sessions.findIndex(s => s.id === sessionId);
     if (sessionIdx !== -1) {
@@ -156,5 +150,42 @@ export const EngagementService = {
         { id: 'v2', name: 'Guest (Mumbai)', currentPage: '/cart', timeOnSite: '5m 12s', device: 'Desktop', status: 'idle' },
         { id: 'v3', name: 'Jane Smith', currentPage: '/account', timeOnSite: '10m', device: 'Mobile', status: 'chatting' },
     ];
+  },
+
+  // --- Neural System: Context Retrieval ---
+  getCustomerContext: async (userId: string) => {
+      // Aggregate data for the "Brain"
+      const [orders, products] = await Promise.all([
+          SalesService.getOrdersByUser(userId),
+          CatalogService.getProducts()
+      ]);
+
+      // Mock Active Cart (Random subset of products)
+      const cartItems = products.slice(0, 2); 
+
+      // Calculate Metrics
+      const totalSpend = orders.reduce((acc, o) => acc + o.total, 0);
+      const lastOrder = orders[0]; // Most recent because of sort in SalesService
+
+      return {
+          metrics: {
+              totalSpend,
+              orderCount: orders.length,
+              ltvGrade: totalSpend > 5000 ? 'High Value' : 'Standard',
+              sentiment: 'Positive' // Mock
+          },
+          lastOrder,
+          activeCart: cartItems
+      };
+  },
+
+  // --- Neural System: Trends ---
+  getLiveTrends: async () => {
+      // Mock analyzing chat logs for keywords
+      return [
+          { topic: 'Late Delivery', volume: 'High', sentiment: 'Negative', type: 'logistics' },
+          { topic: 'Green Goddess', volume: 'Medium', sentiment: 'Positive', type: 'product' },
+          { topic: 'Discount Code', volume: 'Low', sentiment: 'Neutral', type: 'marketing' }
+      ];
   }
 };

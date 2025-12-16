@@ -1,47 +1,17 @@
 
 import { Discount } from '../types';
-import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
+import { STORAGE_KEYS, DB, delay } from './storage';
 
 export const DiscountService = {
-  getDiscounts: async (): Promise<Discount[]> => {
+  getDiscounts: () => DB.getAll<Discount>(STORAGE_KEYS.DISCOUNTS, []),
+  addDiscount: (d: Discount) => DB.add(STORAGE_KEYS.DISCOUNTS, d, []),
+  deleteDiscount: (id: string) => DB.delete(STORAGE_KEYS.DISCOUNTS, id, []),
+  validateDiscount: async (code: string, total: number, cats: string[]) => {
     await delay();
-    return getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
-  },
-
-  validateDiscount: async (code: string, cartTotal: number, cartCategories: string[]): Promise<Discount | null> => {
-    await delay(300);
-    const discounts = getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
-    const discount = discounts.find(d => d.code === code && d.isActive);
-
-    if (!discount) return null;
-
-    // Check Minimum Purchase
-    if (discount.minPurchaseAmount && cartTotal < discount.minPurchaseAmount) {
-        throw new Error(`Minimum purchase of ₹${discount.minPurchaseAmount} required.`);
-    }
-
-    // Check Category Restriction
-    if (discount.applicableCategory && discount.applicableCategory !== 'All') {
-        const hasCategory = cartCategories.includes(discount.applicableCategory);
-        if (!hasCategory) {
-            throw new Error(`Discount valid only for ${discount.applicableCategory} items.`);
-        }
-    }
-
-    return discount;
-  },
-
-  addDiscount: async (discount: Discount): Promise<void> => {
-    await delay();
-    const discounts = getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
-    discounts.push(discount);
-    setLocalStorage(STORAGE_KEYS.DISCOUNTS, discounts);
-  },
-
-  deleteDiscount: async (id: string): Promise<void> => {
-    await delay();
-    let discounts = getLocalStorage<Discount[]>(STORAGE_KEYS.DISCOUNTS, []);
-    discounts = discounts.filter(d => d.id !== id);
-    setLocalStorage(STORAGE_KEYS.DISCOUNTS, discounts);
+    const d = (await DB.getAll<Discount>(STORAGE_KEYS.DISCOUNTS)).find(x => x.code === code && x.isActive);
+    if (!d) return null;
+    if (d.minPurchaseAmount && total < d.minPurchaseAmount) throw new Error(`Min purchase ₹${d.minPurchaseAmount}`);
+    if (d.applicableCategory && d.applicableCategory !== 'All' && !cats.includes(d.applicableCategory)) throw new Error(`Only for ${d.applicableCategory}`);
+    return d;
   }
 };

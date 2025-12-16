@@ -1,130 +1,88 @@
 
-import { Product, Category, CartItem } from '../types';
-import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
-import { GlobalEventBus, EVENTS } from './eventBus';
+import { Product, Category, CartItem, PurchaseOrder } from '../types';
+import { STORAGE_KEYS, DB, getLocalStorage, setLocalStorage, delay } from './storage';
+import { FinanceService } from './finance';
 
-// Note: Removed the GlobalEventBus.on(ORDER_CREATED) listener.
-// Stock deduction is now handled transactionally by the SalesService Saga Orchestrator
-// to ensure consistency with payment services.
+// Helper exports for synchronous access (used by SEO/Audit tools)
+export const getProducts = () => getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+export const getCategories = () => getLocalStorage<Category[]>(STORAGE_KEYS.CATEGORIES, []);
 
-export const getProducts = (): Product[] => getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-export const getCategories = (): Category[] => getLocalStorage<Category[]>(STORAGE_KEYS.CATEGORIES, []);
-
+// Microservice: Product Catalog & Inventory
 export const CatalogService = {
-  getProducts: async (): Promise<Product[]> => {
-    await delay();
-    return getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-  },
+  getProducts: () => DB.getAll<Product>(STORAGE_KEYS.PRODUCTS, []),
+  getProductById: (id: string) => DB.getById<Product>(STORAGE_KEYS.PRODUCTS, id, []),
+  getCategories: () => DB.getAll<Category>(STORAGE_KEYS.CATEGORIES, []),
+  addProduct: (p: Product) => DB.add(STORAGE_KEYS.PRODUCTS, p, []),
+  updateProduct: (p: Product) => DB.update(STORAGE_KEYS.PRODUCTS, p, []),
+  deleteProduct: (id: string) => DB.delete(STORAGE_KEYS.PRODUCTS, id, []),
 
-  getProductById: async (id: string): Promise<Product | undefined> => {
-    await delay(200);
-    const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-    return products.find(p => p.id === id);
-  },
+  // Procurement
+  getPurchaseOrders: () => DB.getAll<PurchaseOrder>('dietanic_pos', []),
+  createPurchaseOrder: (po: PurchaseOrder) => DB.add('dietanic_pos', po, []),
+  
+  receivePurchaseOrder: async (poId: string): Promise<void> => {
+      const pos = getLocalStorage<PurchaseOrder[]>('dietanic_pos', []);
+      const po = pos.find(p => p.id === poId);
+      if (!po || po.status === 'received') return;
 
-  getCategories: async (): Promise<Category[]> => {
-    await delay(200);
-    return getLocalStorage<Category[]>(STORAGE_KEYS.CATEGORIES, []);
-  },
+      po.status = 'received';
+      setLocalStorage('dietanic_pos', pos);
 
-  // --- Transactional Methods for Saga Pattern ---
-
-  /**
-   * Reserves stock for an order. 
-   * Throws an error if stock is insufficient.
-   * This acts as the "Prepare" phase of a transaction.
-   */
-  reserveStock: async (items: CartItem[]): Promise<void> => {
-      // Simulate network latency for a write operation
-      await delay(300);
-      
+      // Update Inventory
       const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-      const updatedProducts = [...products]; // Create copy for atomic-like update
+      po.items.forEach(i => {
+          const p = products.find(prod => prod.id === i.productId);
+          if (p) p.stock += i.quantity;
+      });
+      setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
+
+      // Trigger Finance (Payables)
+      await FinanceService.createBill({
+          id: `bill_po_${po.id.slice(-6)}`, vendorId: po.vendorId, vendorName: po.vendorName,
+          date: new Date().toISOString(), dueDate: new Date(Date.now() + 2592000000).toISOString(),
+          amount: po.total, status: 'open', balanceDue: po.total, isRecurring: false, payments: [],
+          items: po.items.map(i => ({ description: `${i.productName} x${i.quantity}`, amount: i.cost * i.quantity }))
+      });
+  },
+
+  // Saga: Inventory Reservation
+  reserveStock: async (items: CartItem[]): Promise<void> => {
+      await delay(300);
+      const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+      const updates = [...products];
 
       for (const item of items) {
-          const productIndex = updatedProducts.findIndex(p => p.id === item.id);
-          if (productIndex === -1) throw new Error(`Product ${item.name} not found.`);
+          const pIdx = updates.findIndex(p => p.id === item.id);
+          if (pIdx === -1) throw new Error(`Product ${item.name} not found.`);
           
-          const product = { ...updatedProducts[productIndex] }; // Shallow copy product
-
-          // Skip stock check for gift cards (infinite)
-          if (product.isGiftCard) continue;
+          const p = { ...updates[pIdx] };
+          if (p.isGiftCard) continue;
 
           if (item.selectedVariation) {
-              const vIdx = product.variations?.findIndex(v => v.id === item.selectedVariation?.id);
-              if (vIdx === undefined || vIdx === -1 || !product.variations) {
-                  throw new Error(`Variation ${item.selectedVariation.name} not found.`);
-              }
-              
-              if (product.variations[vIdx].stock < item.quantity) {
-                  throw new Error(`Insufficient stock for ${product.name} (${item.selectedVariation.name}).`);
-              }
-              
-              // Deduct
-              product.variations[vIdx].stock -= item.quantity;
+              const v = p.variations?.find(v => v.id === item.selectedVariation?.id);
+              if (!v || v.stock < item.quantity) throw new Error(`Insufficient stock: ${p.name} (${item.selectedVariation!.name})`);
+              v.stock -= item.quantity;
           } else {
-              if (product.stock < item.quantity) {
-                  throw new Error(`Insufficient stock for ${product.name}.`);
-              }
-              // Deduct
-              product.stock -= item.quantity;
+              if (p.stock < item.quantity) throw new Error(`Insufficient stock: ${p.name}`);
+              p.stock -= item.quantity;
           }
-          
-          updatedProducts[productIndex] = product;
+          updates[pIdx] = p;
       }
-
-      // Commit changes
-      setLocalStorage(STORAGE_KEYS.PRODUCTS, updatedProducts);
-      console.log('📦 Catalog Microservice: Stock reserved.');
+      setLocalStorage(STORAGE_KEYS.PRODUCTS, updates);
+      console.log('📦 Catalog: Stock reserved');
   },
 
-  /**
-   * Compensating Transaction.
-   * Restores stock if the order process fails at a later stage (e.g. Payment failed).
-   */
   restoreStock: async (items: CartItem[]): Promise<void> => {
-      console.warn('📦 Catalog Microservice: Rolling back stock reservation...');
       const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-      
       items.forEach(item => {
-          const product = products.find(p => p.id === item.id);
-          if (!product || product.isGiftCard) return;
-
+          const p = products.find(p => p.id === item.id);
+          if (!p || p.isGiftCard) return;
           if (item.selectedVariation) {
-              const variant = product.variations?.find(v => v.id === item.selectedVariation?.id);
-              if (variant) variant.stock += item.quantity;
-          } else {
-              product.stock += item.quantity;
-          }
+              const v = p.variations?.find(v => v.id === item.selectedVariation?.id);
+              if (v) v.stock += item.quantity;
+          } else p.stock += item.quantity;
       });
-
       setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
-      console.log('📦 Catalog Microservice: Stock restored.');
-  },
-
-  // --- Admin Ops ---
-  
-  addProduct: async (product: Product): Promise<void> => {
-    await delay();
-    const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-    products.push(product);
-    setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
-  },
-
-  updateProduct: async (updatedProduct: Product): Promise<void> => {
-    await delay();
-    const products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-    const index = products.findIndex(p => p.id === updatedProduct.id);
-    if (index !== -1) {
-      products[index] = updatedProduct;
-      setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
-    }
-  },
-
-  deleteProduct: async (id: string): Promise<void> => {
-    await delay();
-    let products = getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-    products = products.filter(p => p.id !== id);
-    setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
+      console.log('📦 Catalog: Stock restored');
   }
 };

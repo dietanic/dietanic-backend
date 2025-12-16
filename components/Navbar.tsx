@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, X, ChevronDown, Search } from 'lucide-react';
+import { ShoppingBag, Menu, X, ChevronDown, Search, Globe, Leaf, Truck } from 'lucide-react';
 import { useCart, useAuth } from '../App';
 
 export const Navbar: React.FC = () => {
@@ -11,7 +11,7 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { cartItems } = useCart();
-  const { user, login, usersList, canManageStore } = useAuth();
+  const { user, login, usersList, canManageStore, isAdmin, isDriver } = useAuth();
 
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -40,17 +40,20 @@ export const Navbar: React.FC = () => {
     }
   };
 
+  // Hide main navbar on ChainCommand page for immersion
+  // Also hide for Field Agent app to feel native
+  if (location.pathname === '/chain-command' || location.pathname === '/delivery') return null;
+
   return (
-    <nav className="bg-white shadow-sm sticky top-0 z-50">
+    <nav className="bg-white shadow-sm sticky top-0 z-50 border-b border-brand-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center">
-               <img 
-                   src="https://cdn2.zohoecommerce.com/brightened-image-remove-photos.png" 
-                   alt="Dietanic" 
-                   className="h-10 w-auto object-contain"
-               />
+            <Link to="/" className="flex-shrink-0 flex items-center gap-2 group">
+               <div className="bg-brand-600 p-1.5 rounded-lg transform group-hover:rotate-12 transition-transform">
+                   <Leaf className="text-white h-5 w-5" fill="currentColor" />
+               </div>
+               <span className="font-bold text-xl tracking-tight text-brand-900 group-hover:text-brand-700 transition-colors">Dietanic</span>
             </Link>
           </div>
 
@@ -68,6 +71,26 @@ export const Navbar: React.FC = () => {
                 {link.name}
               </Link>
             ))}
+            
+            {/* Field Agent Link */}
+            {isDriver && (
+                <Link
+                    to="/delivery"
+                    className="flex items-center gap-1 px-3 py-1 bg-slate-800 text-white rounded-md text-xs font-bold uppercase tracking-wide hover:bg-slate-700 transition-colors"
+                >
+                    <Truck size={12} /> Delivery App
+                </Link>
+            )}
+
+            {/* Special Chain Command Link */}
+            {isAdmin && (
+                <Link 
+                    to="/chain-command" 
+                    className="flex items-center gap-1 px-3 py-1 bg-slate-900 text-emerald-400 rounded-md text-xs font-bold uppercase tracking-wide hover:bg-slate-800 transition-colors"
+                >
+                    <Globe size={12} /> HQ View
+                </Link>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -79,7 +102,7 @@ export const Navbar: React.FC = () => {
                   <input
                     type="text"
                     autoFocus
-                    placeholder="Search products..."
+                    placeholder="Search salads..."
                     className="w-full pl-4 pr-10 py-1.5 text-sm border border-gray-300 rounded-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -103,6 +126,7 @@ export const Navbar: React.FC = () => {
                     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
                         user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 
                         user.role === 'editor' ? 'bg-blue-100 text-blue-700' :
+                        user.role === 'driver' ? 'bg-orange-100 text-orange-700' :
                         'bg-gray-100 text-gray-600'
                     }`}>
                         {user.role}
@@ -130,7 +154,7 @@ export const Navbar: React.FC = () => {
             <Link to="/cart" className="p-2 text-gray-400 hover:text-brand-600 relative">
               <ShoppingBag className="h-6 w-6" />
               {totalItems > 0 && (
-                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-brand-600 rounded-full">
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-brand-600 rounded-full shadow-sm">
                   {totalItems}
                 </span>
               )}
@@ -180,6 +204,24 @@ export const Navbar: React.FC = () => {
                 {link.name}
               </Link>
             ))}
+            {isDriver && (
+                <Link
+                    to="/delivery"
+                    onClick={() => setIsOpen(false)}
+                    className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-slate-700 bg-slate-100 hover:bg-slate-200"
+                >
+                    Launch Delivery App
+                </Link>
+            )}
+            {isAdmin && (
+                <Link
+                    to="/chain-command"
+                    onClick={() => setIsOpen(false)}
+                    className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-emerald-600 bg-slate-900 hover:bg-slate-800"
+                >
+                    HQ View
+                </Link>
+            )}
           </div>
         </div>
       )}

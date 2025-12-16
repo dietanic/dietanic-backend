@@ -1,4 +1,5 @@
 
+
 import { Product, Category, User, Review, Discount, CustomerProfile } from './types';
 
 export const INITIAL_CATEGORIES: Category[] = [
@@ -13,39 +14,41 @@ export const INITIAL_PRODUCTS: Product[] = [
   {
     id: '1',
     name: 'The Green Goddess',
-    description: 'A vibrant mix of kale, spinach, avocado, green apple, and our signature herby dressing.',
+    description: 'A vibrant mix of kale, spinach, avocado, green apple, and our signature herby dressing. Packed with antioxidants.',
     price: 349,
     cost: 140, // ~40% margin
     category: 'Signature Salads',
-    image: 'https://picsum.photos/400/400?random=1',
+    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     isSubscription: false,
-    ingredients: ['Kale', 'Spinach', 'Avocado', 'Green Apple', 'Cucumber'],
+    ingredients: ['Kale', 'Spinach', 'Avocado', 'Green Apple', 'Cucumber', 'Herb Dressing'],
     stock: 45,
     sku: 'SLD-GRN-001',
-    lowStockThreshold: 10
+    lowStockThreshold: 10,
+    nutritionalInfo: { calories: 320, protein: 8, carbs: 24, fat: 22 }
   },
   {
     id: '2',
     name: 'Quinoa Power Bowl',
-    description: 'Protein-packed quinoa base with roasted sweet potatoes, chickpeas, and tahini drizzle.',
+    description: 'Protein-packed quinoa base with roasted sweet potatoes, chickpeas, and tahini drizzle. A complete meal.',
     price: 399,
     cost: 160,
     category: 'Warm Bowls',
-    image: 'https://picsum.photos/400/400?random=2',
+    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     isSubscription: false,
-    ingredients: ['Quinoa', 'Sweet Potato', 'Chickpeas', 'Tahini', 'Parsley'],
+    ingredients: ['Quinoa', 'Sweet Potato', 'Chickpeas', 'Tahini', 'Parsley', 'Lemon'],
     stock: 30,
     sku: 'BWL-QNA-001',
-    lowStockThreshold: 5
+    lowStockThreshold: 5,
+    nutritionalInfo: { calories: 450, protein: 18, carbs: 55, fat: 16 }
   },
   {
     id: '3',
     name: 'Lunch Plan',
-    description: 'Fresh salads delivered to your door. Choose the frequency that fits your lifestyle.',
+    description: 'Fresh salads delivered to your door. Choose the frequency that fits your lifestyle. Become a fan of freshness.',
     price: 1500,
     cost: 800,
     category: 'Weekly Subscriptions',
-    image: 'https://picsum.photos/400/400?random=3',
+    image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     isSubscription: true,
     ingredients: ['Mixed Salads'],
     stock: 100,
@@ -60,12 +63,12 @@ export const INITIAL_PRODUCTS: Product[] = [
   },
   {
     id: '4',
-    name: 'Dietanic Digital Gift Card',
+    name: 'Dietanic Gift Card',
     description: 'Give the gift of health. Delivered instantly via email and redeemable for any item or subscription.',
     price: 500,
     cost: 0, // Digital product
     category: 'Gift Cards',
-    image: 'https://picsum.photos/400/400?random=4',
+    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     isSubscription: false,
     isGiftCard: true,
     ingredients: [],
@@ -77,6 +80,20 @@ export const INITIAL_PRODUCTS: Product[] = [
         { id: 'gc_2000', name: '₹2000', price: 2000, stock: 9999, cost: 0 },
         { id: 'gc_5000', name: '₹5000', price: 5000, stock: 9999, cost: 0 },
     ]
+  },
+  {
+    id: '5',
+    name: 'Citrus Detox Juice',
+    description: 'Cold pressed orange, carrot, and ginger. The perfect immunity booster.',
+    price: 199,
+    cost: 80,
+    category: 'Cold Pressed Juices',
+    image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    isSubscription: false,
+    ingredients: ['Orange', 'Carrot', 'Ginger', 'Turmeric'],
+    stock: 50,
+    sku: 'JCE-CIT-001',
+    nutritionalInfo: { calories: 120, protein: 2, carbs: 28, fat: 0 }
   }
 ];
 
@@ -114,6 +131,15 @@ export const INITIAL_USERS: User[] = [
     name: 'Content Editor',
     email: 'editor@dietanic.com',
     role: 'editor',
+    status: 'active',
+    addresses: [],
+    wishlist: []
+  },
+  {
+    id: 'driver_001',
+    name: 'Mike Deliveries',
+    email: 'driver@dietanic.com',
+    role: 'driver',
     status: 'active',
     addresses: [],
     wishlist: []
@@ -159,10 +185,35 @@ export const INITIAL_CUSTOMERS: CustomerProfile[] = [
         billing: {
             currentMonthAmount: 5500,
             invoices: [
-                { id: 'inv_001', date: '2023-10-01', amount: 5500, status: 'paid' },
-                { id: 'inv_002', date: '2023-09-01', amount: 5500, status: 'paid' }
+                { 
+                    id: 'inv_001', 
+                    date: '2023-10-01', 
+                    dueDate: '2023-10-08', 
+                    amount: 5500, 
+                    status: 'paid', 
+                    customerName: 'Jane Smith', 
+                    items: [], 
+                    currency: 'INR', 
+                    taxAmount: 250,
+                    payments: [],
+                    balanceDue: 0
+                },
+                { 
+                    id: 'inv_002', 
+                    date: '2023-09-01', 
+                    dueDate: '2023-09-08', 
+                    amount: 5500, 
+                    status: 'paid', 
+                    customerName: 'Jane Smith', 
+                    items: [], 
+                    currency: 'INR', 
+                    taxAmount: 250,
+                    payments: [],
+                    balanceDue: 0
+                }
             ]
-        }
+        },
+        consentToProcessPHI: true
     }
 ];
 

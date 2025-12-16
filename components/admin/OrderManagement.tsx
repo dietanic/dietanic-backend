@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SalesService, IdentityService } from '../../services/storeService';
-// Removed explicit email import
-import { Order, User } from '../../types';
-import { Filter, Calendar, Loader, XCircle, Search, AlertCircle } from 'lucide-react';
+import { Order, User, CartItem } from '../../types';
+import { Filter, Calendar, Loader, XCircle, Search, AlertCircle, Scan, CheckCircle, Package, ArrowRight, Box } from 'lucide-react';
 
 export const OrderManagement: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -16,9 +15,22 @@ export const OrderManagement: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [customerNameFilter, setCustomerNameFilter] = useState('');
 
+  // Picking Mode State
+  const [pickingOrder, setPickingOrder] = useState<Order | null>(null);
+  const [pickedItems, setPickedItems] = useState<Record<string, number>>({}); // itemId -> qty picked
+  const [scanInput, setScanInput] = useState('');
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-focus scanner input when picking starts
+  useEffect(() => {
+      if (pickingOrder && scanInputRef.current) {
+          scanInputRef.current.focus();
+      }
+  }, [pickingOrder]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -33,7 +45,7 @@ export const OrderManagement: React.FC = () => {
 
       if (newStatus === 'cancelled') {
           const reason = prompt("Please enter a reason for cancellation:", "Out of stock / Customer Request");
-          if (reason === null) return; // User cancelled the prompt
+          if (reason === null) return;
           cancellationReason = reason || "No reason provided";
       }
 
@@ -43,13 +55,58 @@ export const OrderManagement: React.FC = () => {
           cancellationReason: cancellationReason 
       };
       
-      // Update via Sales Service. 
-      // This triggers ORDER_UPDATED event -> Notification Service picks it up.
       await SalesService.updateOrder(updatedOrder);
-      
       loadData();
   };
 
+  // --- Picking Logic ---
+  const startPicking = (order: Order) => {
+      setPickingOrder(order);
+      setPickedItems({});
+      setScanInput('');
+  };
+
+  const handleScan = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!pickingOrder || !scanInput.trim()) return;
+
+      const sku = scanInput.trim().toLowerCase();
+      // Find item in order matching SKU or Name (fallback for demo)
+      const itemToPick = pickingOrder.items.find(item => 
+          (item.sku && item.sku.toLowerCase() === sku) || 
+          item.name.toLowerCase() === sku || 
+          item.id === sku
+      );
+
+      if (itemToPick) {
+          const currentPicked = pickedItems[itemToPick.cartItemId] || 0;
+          if (currentPicked < itemToPick.quantity) {
+              setPickedItems(prev => ({
+                  ...prev,
+                  [itemToPick.cartItemId]: currentPicked + 1
+              }));
+              setScanInput(''); // Clear for next scan
+          } else {
+              alert(`Item "${itemToPick.name}" is already fully picked!`);
+          }
+      } else {
+          alert("Item not found in this order! Check SKU.");
+      }
+  };
+
+  const isOrderFullyPicked = () => {
+      if (!pickingOrder) return false;
+      return pickingOrder.items.every(item => (pickedItems[item.cartItemId] || 0) === item.quantity);
+  };
+
+  const completePicking = async () => {
+      if (pickingOrder && isOrderFullyPicked()) {
+          await handleUpdateStatus(pickingOrder, 'processing'); // Or delivered
+          setPickingOrder(null);
+      }
+  };
+
+  // --- Filter Logic ---
   const clearFilters = () => {
       setStatusFilter('all');
       setStartDate('');
@@ -59,15 +116,11 @@ export const OrderManagement: React.FC = () => {
 
   const filteredOrders = orders.filter(o => {
       const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-      
       const orderDate = new Date(o.date).setHours(0, 0, 0, 0);
       const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
       const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
-
       const matchesStart = start ? orderDate >= start : true;
       const matchesEnd = end ? orderDate <= end : true;
-
-      // Name Filter Logic
       const customer = users.find(u => u.id === o.userId);
       const customerName = customer ? customer.name.toLowerCase() : 'unknown';
       const matchesName = customerNameFilter 
@@ -80,8 +133,86 @@ export const OrderManagement: React.FC = () => {
   if (isLoading) return <div className="p-8 flex justify-center"><Loader className="animate-spin text-brand-600"/></div>;
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden animate-fade-in">
-        {/* Advanced Filters */}
+    <div className="bg-white shadow rounded-lg overflow-hidden animate-fade-in relative">
+        {/* Picking Modal Overlay */}
+        {pickingOrder && (
+            <div className="absolute inset-0 z-50 bg-gray-900/95 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-6 bg-brand-600 text-white flex justify-between items-center">
+                        <div>
+                            <h2 className="text-xl font-bold flex items-center gap-2"><Scan /> Picking Mode</h2>
+                            <p className="text-brand-100 text-sm">Order #{pickingOrder.id.slice(-6)} • {pickingOrder.items.length} Line Items</p>
+                        </div>
+                        <button onClick={() => setPickingOrder(null)} className="p-2 hover:bg-brand-700 rounded-full"><XCircle /></button>
+                    </div>
+                    
+                    <div className="p-6 bg-gray-50 border-b border-gray-200">
+                        <form onSubmit={handleScan} className="flex gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-3 text-gray-400" size={20}/>
+                                <input 
+                                    ref={scanInputRef}
+                                    type="text" 
+                                    value={scanInput}
+                                    onChange={(e) => setScanInput(e.target.value)}
+                                    placeholder="Scan Item SKU or Barcode..."
+                                    className="w-full pl-10 pr-4 py-3 rounded-lg border-2 border-brand-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none text-lg font-mono"
+                                    autoFocus
+                                />
+                            </div>
+                            <button type="submit" className="bg-gray-800 text-white px-6 rounded-lg font-bold">Enter</button>
+                        </form>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                        {pickingOrder.items.map((item) => {
+                            const pickedQty = pickedItems[item.cartItemId] || 0;
+                            const isComplete = pickedQty === item.quantity;
+                            return (
+                                <div key={item.cartItemId} className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isComplete ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-16 w-16 bg-white rounded-lg border border-gray-200 p-1">
+                                            <img src={item.image} className="w-full h-full object-cover rounded" alt=""/>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-900">{item.name}</h4>
+                                            <p className="text-sm text-gray-500 font-mono">SKU: {item.sku || 'N/A'}</p>
+                                            {item.selectedVariation && <span className="text-xs bg-gray-200 px-2 py-0.5 rounded text-gray-700">{item.selectedVariation.name}</span>}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-2xl font-bold flex items-center justify-end gap-2">
+                                            <span className={isComplete ? 'text-green-600' : 'text-gray-900'}>{pickedQty}</span>
+                                            <span className="text-gray-400 text-lg">/</span>
+                                            <span className="text-gray-600">{item.quantity}</span>
+                                        </div>
+                                        <span className={`text-xs font-bold uppercase ${isComplete ? 'text-green-600' : 'text-orange-500'}`}>
+                                            {isComplete ? 'Picked' : 'Pending'}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="p-6 border-t border-gray-200 bg-gray-50">
+                        <button 
+                            onClick={completePicking}
+                            disabled={!isOrderFullyPicked()}
+                            className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                                isOrderFullyPicked() 
+                                ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-lg transform hover:-translate-y-1' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                        >
+                            {isOrderFullyPicked() ? <><CheckCircle /> Complete & Mark Processed</> : 'Scan all items to continue'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Filters Header */}
         <div className="p-4 border-b border-gray-200 bg-gray-50 space-y-3">
             <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex items-center gap-2 flex-1">
@@ -197,7 +328,20 @@ export const OrderManagement: React.FC = () => {
                                     {order.status}
                                 </span>
                             </div>
-                            <div className="flex gap-2 flex-wrap">
+                            
+                            <div className="flex gap-2 items-center">
+                                {/* Pick Button for Pending Orders */}
+                                {order.status === 'pending' && (
+                                    <button 
+                                        onClick={() => startPicking(order)}
+                                        className="bg-brand-600 text-white text-xs font-bold px-4 py-2 rounded-md hover:bg-brand-700 flex items-center gap-2 shadow-sm animate-pulse"
+                                    >
+                                        <Scan size={14} /> Start Picking
+                                    </button>
+                                )}
+
+                                <div className="h-4 w-px bg-gray-300 mx-2"></div>
+
                                 {['pending', 'processing', 'delivered', 'cancelled'].map((status) => (
                                     <button
                                         key={status}

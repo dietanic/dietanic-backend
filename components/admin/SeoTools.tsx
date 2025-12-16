@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { performSEOAudit, simulateImageOptimization, generateLLMContent, AuditResult, getBenchmarkData } from '../../services/seoService';
+import { performSEOAudit, simulateImageOptimization, generateLLMContent, AuditResult } from '../../services/seoService';
 import { Zap, ImageIcon, FileText, Download, Search, CheckCircle, AlertTriangle, BarChart2 } from 'lucide-react';
 
 export const SeoTools: React.FC = () => {
