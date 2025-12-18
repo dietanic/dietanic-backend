@@ -1,6 +1,7 @@
+import React, { useState, useEffect } from 'react';
 import { PayrollService, IdentityService, APIGateway } from '../../services/storeService';
 import { User, Payslip, SalaryStructure, Expense } from '../../types';
-import { DollarSign, User as UserIcon, FileText, Settings, Download, CheckCircle, Calculator, Plus, Trash2 } from 'lucide-react';
+import { DollarSign, User as UserIcon, FileText, Settings, Download, CheckCircle, Calculator, Plus, Trash2, X } from 'lucide-react';
 
 export const PayrollModule: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'process' | 'history' | 'employees'>('process');
@@ -224,7 +225,7 @@ export const PayrollModule: React.FC = () => {
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
                         <div className="p-6 border-b border-gray-100 flex justify-between">
                             <h3 className="font-bold text-lg">Salary Configuration: {editingUser.name}</h3>
-                            <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600">X</button>
+                            <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600"><X/></button>
                         </div>
                         <div className="p-6 space-y-6">
                             <div className="grid grid-cols-2 gap-4">

@@ -1,6 +1,5 @@
-import * as React from 'react';
-import { ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw, ServerCrash } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { ServerCrash, RefreshCw } from 'lucide-react';
 
 interface Props {
   children?: ReactNode;
@@ -11,27 +10,14 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Robust Error Boundary
- * Uses traditional constructor and lifecycle methods for maximum environment compatibility.
- */
-// Fix: Explicitly ensuring the class extends React.Component with proper generic types to facilitate recognition of inherited members.
+// Fix: Explicitly using React.Component to ensure props property is correctly inherited and recognized by the compiler
 export class ErrorBoundary extends React.Component<Props, State> {
-  // Fix: Explicitly declaring state as a class property to satisfy TypeScript compiler when inheritance members aren't automatically picked up.
   public state: State = {
     hasError: false,
     error: null
   };
 
-  constructor(props: Props) {
-    super(props);
-    // Removed redundant `this.state` initialization here,
-    // relying on the class property `state` initialization above.
-    // this.state = {
-    //   hasError: false,
-    //   error: null
-    // };
-  }
+  // Fix: Removed redundant constructor that was only passing props to super
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -46,7 +32,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   render() {
-    // Fix: Accessing state using 'this' as expected in a class component, inherited from Component<Props, State>.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-center font-sans">
@@ -59,11 +44,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
               We've encountered a runtime exception. The system has automatically isolated the fault to protect your data integrity.
             </p>
             
-            {/* Fix: Verifying 'error' exists in state before attempting to render its content. */}
             {this.state.error && (
                 <div className="bg-slate-900 p-4 rounded-3xl font-mono text-emerald-400 text-left mb-8 overflow-auto max-h-40 text-[10px] shadow-inner">
                     <span className="text-rose-400 font-bold uppercase mr-2">[Error Stack]</span>
-                    {/* Fix: Safely accessing the error object and converting it to string for display. */}
                     {this.state.error.toString()}
                 </div>
             )}
@@ -79,7 +62,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Fix: Correctly accessing children via 'this.props', as defined by the Component generic.
+    // Fix: Correctly returning children from props to satisfy ReactNode requirement
     return this.props.children;
   }
 }

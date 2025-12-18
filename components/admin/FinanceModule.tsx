@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { APIGateway } from '../../services/storeService'; // Use APIGateway
 import { Expense, LedgerEntry, LedgerAccount, BankTransaction, FinancialForecast, Quote, SalesOrder, Invoice, Vendor, Bill, Project, VendorCredit, JournalLine } from '../../types';
@@ -214,11 +212,9 @@ const AccountingTab: React.FC = () => {
     );
 };
 
-// --- EXISTING COMPONENTS (Refactored to be cleaner) ---
-// Receivables, Payables, Compliance, Projects (Kept mostly same, just ensuring imports work)
+// --- RECEIVABLES TAB ---
 
 const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], invoices: Invoice[], refresh: () => void }> = ({ quotes, salesOrders, invoices, refresh }) => {
-    // ... existing logic from previous file content ...
     const [paymentModal, setPaymentModal] = useState<string | null>(null); 
     const [paymentAmount, setPaymentAmount] = useState(0);
 
@@ -233,7 +229,6 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
 
     return (
         <div className="space-y-8 animate-fade-in">
-            {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-lg border border-gray-200 flex items-center justify-between">
                     <div>
@@ -242,10 +237,8 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
                     </div>
                     <FileText className="text-blue-500" size={24}/>
                 </div>
-                {/* ... existing stats ... */}
             </div>
 
-            {/* Invoices Table */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                     <h3 className="font-bold text-gray-800">Invoices & Payments</h3>
@@ -279,7 +272,6 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
                 </table>
             </div>
             
-            {/* Payment Modal */}
             {paymentModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
@@ -296,8 +288,9 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
     );
 };
 
+// --- PAYABLES TAB ---
+
 const PayablesTab: React.FC<{ vendors: Vendor[], bills: Bill[], refresh: () => void }> = ({ vendors, bills, refresh }) => {
-    // ... Simplified Payables view ...
     return (
         <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -306,7 +299,6 @@ const PayablesTab: React.FC<{ vendors: Vendor[], bills: Bill[], refresh: () => v
                     <p className="text-2xl font-bold text-red-600">₹{vendors.reduce((acc, v) => acc + v.balanceDue, 0).toLocaleString()}</p>
                 </div>
              </div>
-             {/* Vendor Table */}
              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                  <div className="p-4 bg-gray-50 font-bold border-b">Active Vendors</div>
                  {vendors.map(v => (
@@ -320,12 +312,14 @@ const PayablesTab: React.FC<{ vendors: Vendor[], bills: Bill[], refresh: () => v
     );
 };
 
-const ComplianceTab: React.FC = () => (
+// --- COMPLIANCE TAB ---
+
+const ComplianceTab: React.FC<{ taxReport: any }> = ({ taxReport }) => (
     <div className="space-y-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <h3 className="font-bold text-gray-800 mb-2">GST Summary</h3>
             <div className="flex justify-between items-center">
-                <span className="text-2xl font-bold text-brand-600">₹{(APIGateway.Finance.Reporting.getTaxReport() as any)?.totalTax?.toLocaleString() || '0'}</span> {/* Use APIGateway */}
+                <span className="text-2xl font-bold text-brand-600">₹{taxReport?.totalTax?.toLocaleString() || '0'}</span>
                 <button className="text-xs bg-brand-50 text-brand-700 px-3 py-1 rounded">View Report</button>
             </div>
         </div>
@@ -341,6 +335,7 @@ export const FinanceModule: React.FC = () => {
     
     // Data State
     const [financials, setFinancials] = useState<any>(null);
+    const [taxReport, setTaxReport] = useState<any>(null);
     const [quotes, setQuotes] = useState<Quote[]>([]);
     const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -353,16 +348,18 @@ export const FinanceModule: React.FC = () => {
 
     const loadData = async () => {
         setLoading(true);
-        const [fin, qs, sos, invs, vends, bs] = await Promise.all([
-            APIGateway.Finance.Reporting.generateStatement(), // Use APIGateway
-            APIGateway.Finance.Receivables.getQuotes(), // Use APIGateway
-            APIGateway.Finance.Receivables.getSalesOrders(), // Use APIGateway
-            APIGateway.Finance.Receivables.getInvoices(), // Use APIGateway
-            APIGateway.Finance.Payables.getVendors(), // Use APIGateway
-            APIGateway.Finance.Payables.getBills() // Use APIGateway
+        const [fin, tax, qs, sos, invs, vends, bs] = await Promise.all([
+            APIGateway.Finance.Reporting.generateStatement(),
+            APIGateway.Finance.Reporting.getTaxReport(),
+            APIGateway.Finance.Receivables.getQuotes(),
+            APIGateway.Finance.Receivables.getSalesOrders(),
+            APIGateway.Finance.Receivables.getInvoices(),
+            APIGateway.Finance.Payables.getVendors(),
+            APIGateway.Finance.Payables.getBills()
         ]);
         
         setFinancials(fin);
+        setTaxReport(tax);
         setQuotes(qs);
         setSalesOrders(sos);
         setInvoices(invs);
@@ -384,7 +381,7 @@ export const FinanceModule: React.FC = () => {
                 <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
                     {[
                         { id: 'dashboard', label: 'Reports' },
-                        { id: 'accounting', label: 'Accounting' }, // NEW TAB
+                        { id: 'accounting', label: 'Accounting' },
                         { id: 'receivables', label: 'Receivables' },
                         { id: 'payables', label: 'Payables' },
                         { id: 'compliance', label: 'Tax' }
@@ -408,21 +405,21 @@ export const FinanceModule: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-green-500">
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Sales</p>
-                            <h3 className="text-2xl font-bold mt-1 text-gray-900">₹{financials.revenue.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold mt-1 text-gray-900">₹{financials.revenue?.total?.toLocaleString() || '0'}</h3>
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-500">
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Expenses</p>
-                            <h3 className="text-2xl font-bold mt-1 text-gray-900">₹{financials.expenses.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold mt-1 text-gray-900">₹{financials.expenses?.total?.toLocaleString() || '0'}</h3>
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Net Profit</p>
                             <h3 className={`text-2xl font-bold mt-1 ${financials.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                                ₹{financials.netProfit.toLocaleString()}
+                                ₹{financials.netProfit?.toLocaleString() || '0'}
                             </h3>
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-purple-500">
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tax Liability</p>
-                            <h3 className="text-2xl font-bold mt-1 text-gray-900">₹{financials.taxLiability.toLocaleString()}</h3>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Net Profit Margin</p>
+                            <h3 className="text-2xl font-bold mt-1 text-gray-900">{financials.netProfitMargin || '0'}%</h3>
                         </div>
                     </div>
                 </div>
@@ -431,7 +428,7 @@ export const FinanceModule: React.FC = () => {
             {activeTab === 'accounting' && <AccountingTab />}
             {activeTab === 'receivables' && <ReceivablesTab quotes={quotes} salesOrders={salesOrders} invoices={invoices} refresh={loadData} />}
             {activeTab === 'payables' && <PayablesTab vendors={vendors} bills={bills} refresh={loadData} />}
-            {activeTab === 'compliance' && <ComplianceTab />}
+            {activeTab === 'compliance' && <ComplianceTab taxReport={taxReport} />}
         </div>
     );
 };
