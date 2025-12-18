@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { CatalogService, FinanceService } from '../services/storeService';
+import { CatalogService, APIGateway } from '../services/storeService'; // Use APIGateway
 import { PurchaseOrder, Bill } from '../types';
 import { Truck, Package, MessageSquare, Upload, CheckCircle, Clock, FileText, Send, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -31,7 +32,7 @@ export const VendorPortal: React.FC = () => {
             if(file) {
                 alert(`Uploaded ${file.name}. Invoice Draft created.`);
                 // Create Draft Bill
-                await FinanceService.createBill({
+                await APIGateway.Finance.Payables.createBill({ // Use APIGateway
                     id: `bill_${Date.now()}`,
                     vendorId: po.vendorId,
                     vendorName: po.vendorName,

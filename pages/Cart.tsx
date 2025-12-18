@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useCart, useAuth } from '../App';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, ArrowLeft, CreditCard, Calendar, CheckCircle, Tag, Loader, AlertTriangle, Wallet, Truck, Zap, Clock, ShieldCheck, ChevronRight, X, Lock, User, MapPin, Mail, Phone } from 'lucide-react';
+import { Trash2, ArrowLeft, CreditCard, Calendar, CheckCircle, Tag, Loader, AlertTriangle, Wallet, Truck, Zap, Clock, ShieldCheck, ChevronRight, X, Lock, User, MapPin, Mail, Phone, Plus, Minus } from 'lucide-react';
 import { APIGateway, MarketingService, CustomerService, IdentityService } from '../services/storeService';
 import { Order, CustomerProfile, TaxSettings } from '../types';
 import { ProductRecommender } from '../components/ProductRecommender';
+import { DeliveryConfigurator, getDeliveryCost, DeliveryMethodType } from '../components/DeliveryConfigurator';
 
 export const Cart: React.FC = () => {
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
@@ -32,7 +33,7 @@ export const Cart: React.FC = () => {
   });
 
   // Delivery State
-  const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express' | 'scheduled'>('standard');
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
 
   // Discount State
   const [promoCode, setPromoCode] = useState('');
@@ -97,16 +98,8 @@ export const Cart: React.FC = () => {
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   
-  // Calculate Shipping
-  const getShippingCost = () => {
-    if (deliveryMethod === 'standard') {
-        return subtotal > 500 ? 0 : 50;
-    }
-    if (deliveryMethod === 'express') return 150;
-    if (deliveryMethod === 'scheduled') return 100;
-    return 0;
-  };
-  const shippingCost = getShippingCost();
+  // Calculate Shipping automatically using the shared utility
+  const shippingCost = getDeliveryCost(deliveryMethod, subtotal);
 
   // Fiscal Position Logic (GST)
   const userState = checkoutForm.state || user?.addresses[0]?.state || '';
@@ -232,7 +225,7 @@ export const Cart: React.FC = () => {
 
   if (cartItems.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center pt-28">
         <h2 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h2>
         <p className="text-gray-600 mb-8">Looks like you haven't added any fresh meals yet.</p>
         <Link to="/shop" className="inline-flex items-center text-brand-600 font-semibold hover:text-brand-500">
@@ -246,7 +239,8 @@ export const Cart: React.FC = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen py-12">
+    // Added pt-28 to push content below fixed navbar
+    <div className="bg-gray-50 min-h-screen pt-28 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
         <div className="lg:grid lg:grid-cols-12 lg:gap-x-12 lg:items-start">
@@ -258,7 +252,7 @@ export const Cart: React.FC = () => {
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-24 h-24 rounded-md object-center object-cover sm:w-48 sm:h-48"
+                      className="w-24 h-24 rounded-xl object-center object-cover sm:w-32 sm:h-32 border border-gray-100 shadow-sm"
                     />
                   </div>
                   <div className="ml-4 flex-1 flex flex-col justify-between sm:ml-6">
@@ -284,26 +278,39 @@ export const Cart: React.FC = () => {
                                 Option: {item.selectedVariation.name}
                             </div>
                          )}
+                         {item.priceTier === 'wholesale' && (
+                            <div className="mt-1 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded w-fit font-bold uppercase tracking-wider">
+                                Wholesale Price
+                            </div>
+                         )}
                       </div>
 
-                      <div className="mt-4 sm:mt-0 sm:pr-9">
-                        <select
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(item.cartItemId, Number(e.target.value))}
-                          className="max-w-full rounded-md border border-gray-300 py-1.5 text-base leading-5 font-medium text-gray-700 text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 sm:text-sm"
-                        >
-                          {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
-                            <option key={num} value={num}>
-                              {num}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="mt-4 sm:mt-0 sm:pr-9 w-full flex items-center justify-between sm:justify-end">
+                        <div className="flex items-center border border-gray-300 rounded-lg bg-white shadow-sm h-9">
+                            <button 
+                                onClick={() => updateQuantity(item.cartItemId, Math.max(1, item.quantity - 1))}
+                                className="px-3 h-full text-gray-600 hover:bg-gray-50 hover:text-brand-600 transition-colors rounded-l-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                disabled={item.quantity <= 1}
+                                aria-label="Decrease quantity"
+                            >
+                                <Minus size={14} />
+                            </button>
+                            <span className="w-8 text-center text-sm font-semibold text-gray-900">{item.quantity}</span>
+                            <button 
+                                onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                                className="px-3 h-full text-gray-600 hover:bg-gray-50 hover:text-brand-600 transition-colors rounded-r-lg flex items-center justify-center"
+                                aria-label="Increase quantity"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </div>
+                        
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.cartItemId)}
-                          className="absolute top-0 right-0 -mr-2 inline-flex p-2 text-gray-400 hover:text-gray-500"
+                          className="absolute top-0 right-0 -mr-2 inline-flex p-2 text-gray-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
+                          aria-label="Remove item"
                         >
-                          <span className="sr-only">Remove</span>
                           <Trash2 className="h-5 w-5" aria-hidden="true" />
                         </button>
                       </div>
@@ -313,23 +320,12 @@ export const Cart: React.FC = () => {
               ))}
             </ul>
 
-            {/* Delivery Configurator */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-                    <Truck className="text-brand-600" size={20} /> Delivery Method
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div onClick={() => setDeliveryMethod('standard')} className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'standard' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className="flex justify-between items-center mb-2"><span className="font-bold text-gray-900 text-sm">Standard</span>{subtotal > 500 ? <span className="text-xs font-bold text-green-600">FREE</span> : <span className="text-xs font-bold text-gray-900">₹50</span>}</div><p className="text-xs text-gray-500">Delivered within 24 hours.</p>
-                    </div>
-                    <div onClick={() => setDeliveryMethod('express')} className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'express' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className="flex justify-between items-center mb-2"><span className="font-bold text-gray-900 flex items-center gap-1 text-sm"><Zap size={12} className="fill-yellow-400 text-yellow-400"/> Express</span><span className="text-xs font-bold text-gray-900">₹150</span></div><p className="text-xs text-gray-500">Delivered within 2 hours.</p>
-                    </div>
-                    <div onClick={() => setDeliveryMethod('scheduled')} className={`border rounded-lg p-4 cursor-pointer transition-all ${deliveryMethod === 'scheduled' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className="flex justify-between items-center mb-2"><span className="font-bold text-gray-900 flex items-center gap-1 text-sm"><Clock size={12}/> Scheduled</span><span className="text-xs font-bold text-gray-900">₹100</span></div><p className="text-xs text-gray-500">Select a convenient slot.</p>
-                    </div>
-                </div>
-            </div>
+            {/* Embed Delivery Method Configurator */}
+            <DeliveryConfigurator 
+                subtotal={subtotal}
+                selectedMethod={deliveryMethod}
+                onMethodChange={setDeliveryMethod}
+            />
 
             {/* Cross-Sell */}
             <div className="mt-10 pt-6 border-t border-gray-200">

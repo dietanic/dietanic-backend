@@ -29,7 +29,7 @@ GlobalEventBus.on(EVENTS.ORDER_CREATED, async (order: Order) => {
 
 // Role to Permission Mapping Configuration
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-    admin: ['view_financials', 'manage_inventory', 'manage_users', 'view_phi', 'access_audit_trail', 'process_refunds', 'access_pos'],
+    admin: ['view_financials', 'manage_inventory', 'manage_users', 'view_phi', 'access_audit_trail', 'process_refunds', 'access_pos', 'manage_orders'],
     editor: ['manage_inventory', 'access_pos'],
     driver: [],
     customer: []

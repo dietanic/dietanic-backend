@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Check, ShoppingCart, Star, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -18,6 +19,7 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
   const [selectedVariation, setSelectedVariation] = useState<ProductVariation | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<'standard' | 'wholesale'>('standard');
   
   // Ratings State (Self-contained data fetching)
   const [avgRating, setAvgRating] = useState(0);
@@ -35,11 +37,12 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
     }
   }, [isOpen, product]);
 
-  // Reset Quantity on Open
+  // Reset Quantity and Tier on Open
   useEffect(() => {
     if (isOpen) {
         setQuantity(1);
         setAdded(false);
+        setSelectedTier('standard');
     }
   }, [isOpen]);
 
@@ -88,7 +91,7 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
         return;
     }
 
-    addToCart(product, defaultPlan, variationToAdd, quantity);
+    addToCart(product, defaultPlan, variationToAdd, quantity, selectedTier);
     
     setAdded(true);
     setTimeout(() => {
@@ -97,8 +100,14 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
     }, 1000);
   };
 
+  // Determine availability of tier selector: Only for simple products
+  const showTierSelector = product.wholesalePrice && !product.isSubscription && (!product.variations || product.variations.length === 0);
+
   // Determine displayed price and stock
-  const displayPrice = selectedVariation ? selectedVariation.price : product.price;
+  const displayPrice = (selectedTier === 'wholesale' && showTierSelector && product.wholesalePrice)
+      ? product.wholesalePrice
+      : (selectedVariation ? selectedVariation.price : product.price);
+      
   const currentStock = selectedVariation ? selectedVariation.stock : product.stock;
   const isOutOfStock = currentStock <= 0;
 
@@ -170,6 +179,27 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
                 </div>
               )}
 
+              {/* Price Tier Selector */}
+              {showTierSelector && (
+                  <div className="mb-6">
+                      <span className="text-sm font-medium text-gray-900 block mb-2">Pricing Tier:</span>
+                      <div className="flex bg-gray-100 p-1 rounded-lg">
+                          <button 
+                              onClick={() => setSelectedTier('standard')} 
+                              className={`flex-1 text-sm font-bold py-1.5 rounded-md transition-all ${selectedTier === 'standard' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                              Standard
+                          </button>
+                          <button 
+                              onClick={() => setSelectedTier('wholesale')} 
+                              className={`flex-1 text-sm font-bold py-1.5 rounded-md transition-all ${selectedTier === 'wholesale' ? 'bg-white shadow text-brand-700' : 'text-gray-500 hover:text-gray-700'}`}
+                          >
+                              Wholesale
+                          </button>
+                      </div>
+                  </div>
+              )}
+
               {/* Variations Selector */}
               {product.variations && product.variations.length > 0 && (
                 <div className="mb-6">
@@ -201,7 +231,12 @@ export const QuickView: React.FC<QuickViewProps> = ({ product, isOpen, onClose }
               <div className="mt-auto pt-6 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-3xl font-bold text-gray-900">₹{displayPrice.toFixed(2)}</p>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-bold text-gray-900">₹{displayPrice.toFixed(2)}</p>
+                        {selectedTier === 'wholesale' && showTierSelector && (
+                            <span className="text-sm text-gray-400 line-through">₹{product.price.toFixed(2)}</span>
+                        )}
+                    </div>
                     {product.isSubscription && <span className="text-xs text-brand-600 font-semibold uppercase">Starting price</span>}
                     {isOutOfStock && <span className="text-xs text-red-600 font-bold flex items-center gap-1 mt-1"><AlertCircle size={12}/> Out of Stock</span>}
                   </div>

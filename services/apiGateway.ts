@@ -7,7 +7,6 @@ import { CustomerService } from './customers';
 import { DiscountService } from './discounts';
 import { EngagementService } from './engagement';
 import { SettingsService } from './settings';
-import { FinanceService } from './finance';
 import { AssetService } from './assets';
 import { PayrollService } from './payroll';
 import { DeliveryService } from './delivery';
@@ -16,10 +15,17 @@ import { MarketingService } from './marketing';
 import { Product, Order, User, Review, Discount, TaxSettings, KnowledgeArticle, Asset, Payslip } from '../types';
 import { KnowledgeService } from './knowledge';
 
+// Import the new granular finance services
+import * as LedgerService from './finance/ledger';
+import * as ReceivablesService from './finance/receivables';
+import * as PayablesService from './finance/payables';
+import * as ExpensesService from './finance/expenses';
+import * as ReportingService from './finance/reporting';
+
 /**
- * MICROSERVICES API GATEWAY
+ * MICROSERVICES API GATEWAY (Domain Facade)
  * 
- * Orchestrates communication between the Frontend Shell and distributed Backend Domains.
+ * Orchestrates communication between the Frontend Shell (ViewModels) and distributed Backend Domains (Services).
  * Each domain functions as an independent bounded context.
  */
 export const APIGateway = {
@@ -46,17 +52,42 @@ export const APIGateway = {
     // --- DOMAIN: FINANCE & ERP ---
     Finance: {
         Ledger: {
-            getEntries: () => FinanceService.getLedgerEntries(),
-            getChartOfAccounts: () => FinanceService.getChartOfAccounts(),
-            recordEntry: (entry: any) => FinanceService.recordJournalEntry(entry)
+            getEntries: () => LedgerService.getLedgerEntries(),
+            getChartOfAccounts: () => LedgerService.getChartOfAccounts(),
+            recordEntry: (entry: any) => LedgerService.recordJournalEntry(entry),
+            createJournalEntry: (entry: any) => LedgerService.createJournalEntry(entry) // Exposed for event handlers
         },
         Payables: {
-            getBills: () => FinanceService.getBills(),
-            getVendors: () => FinanceService.getVendors()
+            getBills: () => PayablesService.getBills(),
+            getVendors: () => PayablesService.getVendors(),
+            createBill: (bill: any) => PayablesService.createBill(bill),
+            approveBill: (id: string) => PayablesService.approveBill(id),
+            payBill: (id: string, amount: number) => PayablesService.payBill(id, amount),
+            getVendorCredits: () => PayablesService.getVendorCredits(),
+            createVendorCredit: (vc: any) => PayablesService.createVendorCredit(vc)
         },
         Receivables: {
-            getInvoices: () => FinanceService.getInvoices(),
-            getQuotes: () => FinanceService.getQuotes()
+            getInvoices: () => ReceivablesService.getInvoices(),
+            saveInvoice: (inv: any) => ReceivablesService.saveInvoice(inv),
+            recordInvoicePayment: (id: string, amount: number, method: string) => ReceivablesService.recordInvoicePayment(id, amount, method),
+            getQuotes: () => ReceivablesService.getQuotes(),
+            saveQuote: (q: any) => ReceivablesService.saveQuote(q),
+            convertQuoteToSO: (id: string) => ReceivablesService.convertQuoteToSO(id),
+            getSalesOrders: () => ReceivablesService.getSalesOrders(),
+            saveSalesOrder: (so: any) => ReceivablesService.saveSalesOrder(so),
+            approveSalesOrder: (id: string) => ReceivablesService.approveSalesOrder(id)
+        },
+        Expenses: {
+            getExpenses: () => ExpensesService.getExpenses(),
+            addExpense: (e: any) => ExpensesService.addExpense(e),
+            deleteExpense: (id: string) => ExpensesService.deleteExpense(id)
+        },
+        Reporting: {
+            getForecast: () => ReportingService.getForecast(),
+            getBankFeed: () => ReportingService.getBankFeed(),
+            autoReconcile: () => ReportingService.autoReconcile(),
+            generateStatement: (start?: string, end?: string) => ReportingService.generateStatement(start, end),
+            getTaxReport: () => ReportingService.getTaxReport()
         },
         Assets: {
             list: () => AssetService.getAssets(),
@@ -68,7 +99,7 @@ export const APIGateway = {
         },
         Tax: {
             getSettings: () => SettingsService.getTaxSettings(),
-            getReport: () => FinanceService.getTaxReport()
+            getReport: () => ReportingService.getTaxReport() // Reporting service now handles this
         }
     },
 

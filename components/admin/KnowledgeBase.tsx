@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { KnowledgeService } from '../../services/storeService';
 import { KnowledgeArticle } from '../../types';
@@ -7,7 +6,7 @@ import { Book, Edit3, Trash2, Plus, CheckCircle, Clock, Save, X } from 'lucide-r
 export const KnowledgeBase: React.FC = () => {
     const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [formData, setFormData] = useState<Partial<KnowledgeArticle>>({});
+    const [formData, setFormData] = useState<Partial<Omit<KnowledgeArticle, 'tags'> & { tags: string | string[] }>>({});
 
     useEffect(() => {
         loadArticles();

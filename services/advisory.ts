@@ -1,8 +1,8 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { KnowledgeService } from './knowledge';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fix: Standardized initialization with direct environment key access
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const askNutritionist = async (question: string): Promise<string> => {
    if (!process.env.API_KEY) {
@@ -10,12 +10,11 @@ export const askNutritionist = async (question: string): Promise<string> => {
   }
 
   try {
-    // 1. Fetch Business Context (Approved Knowledge Base)
     const context = await KnowledgeService.getApprovedContent();
 
-    const model = 'gemini-2.5-flash';
+    // Fix: Upgraded to gemini-3-flash-preview for text-based advisory tasks
+    const model = 'gemini-3-flash-preview';
     
-    // 2. Construct Prompt with Context Enforcement
     const prompt = `
     You are 'Dietanic AI', a customer support agent for a salad subscription brand.
     

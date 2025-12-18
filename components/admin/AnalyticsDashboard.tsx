@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Order, Product, User, ChatSession, FinancialForecast, ProfitLossStatement, CohortData, ProductJourneyInfo } from '../../types';
-import { AnalyticsService, FinanceService } from '../../services/storeService';
+import { AnalyticsService, APIGateway } from '../../services/storeService'; // Use APIGateway
 import { 
     DollarSign, ShoppingCart, Users, Activity, TrendingUp, 
     ArrowUpRight, ArrowDownRight, Download, Calendar, 
@@ -53,7 +54,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ data }) 
             setLoading(true);
             const [pl, fc, ch, pj, bm] = await Promise.all([
                 AnalyticsService.getProfitLossStatement('ytd'),
-                FinanceService.getForecast(),
+                APIGateway.Finance.Reporting.getForecast(), // Use APIGateway
                 AnalyticsService.getCohortAnalysis(),
                 AnalyticsService.getProductJourneys(),
                 AnalyticsService.getBenchmarkData()

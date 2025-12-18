@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fix: Initialization using direct named parameter for process.env.API_KEY
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const locateOrderDestination = async (address: string): Promise<{title: string, uri: string} | null> => {
   if (!process.env.API_KEY) {

@@ -1,7 +1,8 @@
 
+
 import { Product, Category, CartItem, PurchaseOrder } from '../types';
 import { STORAGE_KEYS, DB, getLocalStorage, setLocalStorage, delay } from './storage';
-import { FinanceService } from './finance';
+import { APIGateway } from './apiGateway'; // Import APIGateway
 
 // Helper exports for synchronous access (used by SEO/Audit tools)
 export const getProducts = () => getLocalStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
@@ -37,7 +38,7 @@ export const CatalogService = {
       setLocalStorage(STORAGE_KEYS.PRODUCTS, products);
 
       // Trigger Finance (Payables)
-      await FinanceService.createBill({
+      await APIGateway.Finance.Payables.createBill({ // Use APIGateway
           id: `bill_po_${po.id.slice(-6)}`, vendorId: po.vendorId, vendorName: po.vendorName,
           date: new Date().toISOString(), dueDate: new Date(Date.now() + 2592000000).toISOString(),
           amount: po.total, status: 'open', balanceDue: po.total, isRecurring: false, payments: [],

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CatalogService, EngagementService } from '../services/storeService';
@@ -6,6 +5,7 @@ import { Product, Review, SubscriptionPlan, ProductVariation } from '../types';
 import { useCart, useAuth } from '../App';
 import { Star, ShoppingCart, ArrowLeft, User, CheckCircle, Calendar, Loader, Plus, Minus } from 'lucide-react';
 import { ProductRecommender } from '../components/ProductRecommender';
+import { JSONLD } from '../components/SEOHelper';
 
 export const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +20,7 @@ export const ProductDetail: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | undefined>(undefined);
   const [selectedVariation, setSelectedVariation] = useState<ProductVariation | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
+  const [selectedTier, setSelectedTier] = useState<'standard' | 'wholesale'>('standard');
 
   // Review Form State
   const [rating, setRating] = useState(5);
@@ -46,6 +47,7 @@ export const ProductDetail: React.FC = () => {
         
         // Defaults
         if (prod) {
+            setSelectedTier('standard');
             if (prod.isSubscription && prod.subscriptionPlans && prod.subscriptionPlans.length > 0) {
                 setSelectedPlan(prod.subscriptionPlans[0]);
             }
@@ -60,7 +62,7 @@ export const ProductDetail: React.FC = () => {
 
   const handleAddToCart = () => {
     if (product) {
-      addToCart(product, selectedPlan, selectedVariation, quantity);
+      addToCart(product, selectedPlan, selectedVariation, quantity, selectedTier);
       setAdded(true);
       setTimeout(() => setAdded(false), 1500);
     }
@@ -99,19 +101,51 @@ export const ProductDetail: React.FC = () => {
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
     : '0';
 
-  // Calculate Price based on Variation or Subscription Plan
-  const currentPrice = selectedVariation 
-      ? selectedVariation.price 
-      : (selectedPlan ? selectedPlan.price : product?.price || 0);
+  // Determine availability of tier selector: Only for simple products
+  const showTierSelector = product?.wholesalePrice && !product?.isSubscription && (!product?.variations || product?.variations.length === 0);
+
+  // Calculate Price based on Variation, Tier, or Subscription Plan
+  const currentPrice = (selectedTier === 'wholesale' && showTierSelector && product?.wholesalePrice)
+      ? product.wholesalePrice
+      : (selectedVariation 
+          ? selectedVariation.price 
+          : (selectedPlan ? selectedPlan.price : product?.price || 0));
   
   // Calculate Stock display
   const currentStock = selectedVariation ? selectedVariation.stock : product?.stock || 0;
+
+  // Construct Product Schema for AI/Search Engines
+  const productSchema = product ? {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": product.name,
+    "image": product.image,
+    "description": product.description,
+    "brand": {
+      "@type": "Brand",
+      "name": "Dietanic"
+    },
+    "sku": product.sku || product.id,
+    "offers": {
+      "@type": "Offer",
+      "url": window.location.href,
+      "priceCurrency": "INR",
+      "price": currentPrice,
+      "availability": currentStock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "itemCondition": "https://schema.org/NewCondition"
+    },
+    "aggregateRating": reviews.length > 0 ? {
+      "@type": "AggregateRating",
+      "ratingValue": averageRating,
+      "reviewCount": reviews.length
+    } : undefined
+  } : {};
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-brand-600"/></div>;
 
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center pt-28">
         <h2 className="text-2xl font-bold text-gray-900">Product not found</h2>
         <Link to="/shop" className="text-brand-600 hover:text-brand-500 mt-4 inline-block">
           Return to Shop
@@ -121,8 +155,10 @@ export const ProductDetail: React.FC = () => {
   }
 
   return (
+    // Added pt-28 to ensure content isn't hidden under floating navbar
     <div className="bg-white min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <JSONLD data={productSchema} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-10">
         <Link to="/shop" className="inline-flex items-center text-sm text-gray-500 hover:text-brand-600 mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Shop
         </Link>
@@ -168,6 +204,24 @@ export const ProductDetail: React.FC = () => {
 
             {!product.isSubscription && !product.variations && (
                 <p className="mt-4 text-sm text-gray-500 italic">Approx. Serving: 400g (18 cm Bowl)</p>
+            )}
+
+            {/* Price Tier Selector */}
+            {showTierSelector && (
+                <div className="mt-6 p-1 bg-gray-100 rounded-lg flex w-full max-w-xs">
+                    <button 
+                        onClick={() => setSelectedTier('standard')} 
+                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${selectedTier === 'standard' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Standard
+                    </button>
+                    <button 
+                        onClick={() => setSelectedTier('wholesale')} 
+                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${selectedTier === 'wholesale' ? 'bg-white shadow text-brand-700' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Wholesale
+                    </button>
+                </div>
             )}
 
             {/* Subscription Plans Selector */}
@@ -221,7 +275,12 @@ export const ProductDetail: React.FC = () => {
             <div className="mt-10 pt-6 border-t border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-6">
                    <div className="flex-1">
-                       <p className="text-3xl font-bold text-gray-900">₹{currentPrice.toFixed(2)}</p>
+                       <div className="flex items-baseline gap-2">
+                           <p className="text-3xl font-bold text-gray-900">₹{currentPrice.toFixed(2)}</p>
+                           {selectedTier === 'wholesale' && showTierSelector && (
+                               <span className="text-lg text-gray-400 line-through">₹{product.price.toFixed(2)}</span>
+                           )}
+                       </div>
                        {product.isSubscription && <p className="text-sm text-gray-500">per {selectedPlan?.duration}</p>}
                    </div>
                    

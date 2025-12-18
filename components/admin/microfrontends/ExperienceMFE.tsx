@@ -7,6 +7,7 @@ import { Play, MousePointer, FlaskConical, ShieldCheck, Eye, Monitor, Smartphone
 /**
  * EXPERIENCE & CRO MICROFRONTEND
  * Tools for website analytics, session replay, heatmaps, and experimentation.
+ * Note: Sub-components are exported for use in the main Admin layout.
  */
 export const ExperienceMFE: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'sessions' | 'heatmaps' | 'experiments' | 'privacy'>('sessions');
@@ -53,7 +54,7 @@ export const ExperienceMFE: React.FC = () => {
 
 // --- SUB-COMPONENTS ---
 
-const SessionRecorderView: React.FC = () => {
+export const SessionRecorderView: React.FC = () => {
     const [sessions, setSessions] = useState<SessionRecording[]>([]);
     const [activeSession, setActiveSession] = useState<SessionRecording | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -75,18 +76,8 @@ const SessionRecorderView: React.FC = () => {
             if (isPlaying && activeSession) {
                 setPlaybackTime(prev => {
                     // Stop if end reached
-                    // Assuming string duration is parsed approx or using mock logic
-                    // For demo, loop at 10s
                     if (prev > 10000) { setIsPlaying(false); return 0; }
                     
-                    // Update Mouse Position based on current time
-                    // Find latest event before current time
-                    const event = activeSession.events.reduce((prev, curr) => {
-                        return (Math.abs(curr.timestamp - prev) < Math.abs(prev - (prev + 16 * playbackSpeed))) ? curr : prev;
-                    }, activeSession.events[0]); // Simplified find logic
-
-                    // interpolate logic for smoother movement would go here
-                    // For demo, we jump to next random event close to time
                     const nearbyEvent = activeSession.events.find(e => e.timestamp >= prev && e.timestamp < prev + 100);
                     if (nearbyEvent && nearbyEvent.x && nearbyEvent.y) {
                         setMousePos({ x: nearbyEvent.x, y: nearbyEvent.y });
@@ -213,7 +204,7 @@ const SessionRecorderView: React.FC = () => {
     );
 };
 
-const HeatmapView: React.FC = () => {
+export const HeatmapView: React.FC = () => {
     const [data, setData] = useState<HeatmapData | null>(null);
     const [device, setDevice] = useState<'Desktop' | 'Mobile'>('Desktop');
 
@@ -263,7 +254,7 @@ const HeatmapView: React.FC = () => {
     );
 };
 
-const ExperimentsView: React.FC = () => {
+export const ExperimentsView: React.FC = () => {
     const [experiments, setExperiments] = useState<Experiment[]>([]);
 
     useEffect(() => {
@@ -325,7 +316,7 @@ const ExperimentsView: React.FC = () => {
     );
 };
 
-const PrivacyCenterView: React.FC = () => {
+export const PrivacyCenterView: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-100 p-6 rounded-lg">

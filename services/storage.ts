@@ -17,25 +17,125 @@ export const STORAGE_KEYS = {
   TAX_SETTINGS: 'dietanic_tax_settings',
 };
 
+// --- In-Memory Cache Implementation ---
+class MemoryCache {
+    private cache = new Map<string, any>();
+    private ttls = new Map<string, number>();
+    private readonly DEFAULT_TTL = 300000; // 5 minutes
+
+    get<T>(key: string): T | null {
+        const entry = this.cache.get(key);
+        const expiry = this.ttls.get(key);
+        
+        if (entry !== undefined && expiry && Date.now() < expiry) {
+            console.debug(`[Cache] HIT: ${key}`);
+            return entry as T;
+        }
+        
+        if (entry !== undefined) {
+            console.debug(`[Cache] EXPIRED: ${key}`);
+            this.invalidate(key);
+        }
+        return null;
+    }
+
+    set<T>(key: string, value: T, ttl: number = this.DEFAULT_TTL): void {
+        this.cache.set(key, value);
+        this.ttls.set(key, Date.now() + ttl);
+    }
+
+    invalidate(key: string): void {
+        this.cache.delete(key);
+        this.ttls.delete(key);
+    }
+
+    clear(): void {
+        this.cache.clear();
+        this.ttls.clear();
+    }
+}
+
+const cacheManager = new MemoryCache();
+
 export const delay = (ms: number = 200) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const getLocalStorage = <T>(key: string, defaultVal: T): T => {
-  const item = localStorage.getItem(key);
-  return item ? JSON.parse(item) : defaultVal;
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultVal;
+  } catch (error) {
+    console.error(`Error parsing localStorage key "${key}":`, error);
+    return defaultVal;
+  }
 };
 
 export const setLocalStorage = <T>(key: string, value: T): void => {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error setting localStorage key "${key}":`, error);
+  }
 };
 
-// Generic Data Access Layer for Microservices
+// --- Augmented Data Access Layer with Cache Support ---
 export const DB = {
-    getAll: async <T>(key: string, def: T[] = []) => { await delay(); return getLocalStorage<T[]>(key, def); },
-    getById: async <T extends {id:string}>(key: string, id: string, def: T[] = []) => { await delay(); return getLocalStorage<T[]>(key, def).find(i => i.id === id); },
-    add: async <T>(key: string, item: T, def: T[] = []) => { await delay(); const d = getLocalStorage<T[]>(key, def); d.push(item); setLocalStorage(key, d); },
-    update: async <T extends {id:string}>(key: string, item: T, def: T[] = []) => { await delay(); const d = getLocalStorage<T[]>(key, def); const i = d.findIndex(x=>x.id===item.id); if(i>-1) d[i]=item; setLocalStorage(key, d); },
-    upsert: async <T extends {id:string}>(key: string, item: T, def: T[] = []) => { await delay(); const d = getLocalStorage<T[]>(key, def); const i = d.findIndex(x=>x.id===item.id); if(i>-1) d[i]=item; else d.push(item); setLocalStorage(key, d); },
-    delete: async <T extends {id:string}>(key: string, id: string, def: T[] = []) => { await delay(); const d = getLocalStorage<T[]>(key, def); setLocalStorage(key, d.filter(x=>x.id!==id)); }
+    getAll: async <T>(key: string, def: T[] = []) => { 
+        // 1. Check Memory Cache first
+        const cached = cacheManager.get<T[]>(key);
+        if (cached) return cached;
+
+        // 2. Fallback to LocalStorage (Simulated HTTP Request)
+        await delay(); 
+        const data = getLocalStorage<T[]>(key, def);
+        
+        // 3. Hydrate Cache
+        cacheManager.set(key, data);
+        return data; 
+    },
+    
+    getById: async <T extends {id:string}>(key: string, id: string, def: T[] = []) => { 
+        // Logic: Get all (cached) then find
+        const data = await DB.getAll<T>(key, def);
+        return data.find(i => i.id === id);
+    },
+    
+    add: async <T>(key: string, item: T, def: T[] = []) => { 
+        await delay(); 
+        const d = getLocalStorage<T[]>(key, def); 
+        d.push(item); 
+        setLocalStorage(key, d);
+        // Invalidate cache to force refresh on next read
+        cacheManager.invalidate(key);
+    },
+    
+    update: async <T extends {id:string}>(key: string, item: T, def: T[] = []) => { 
+        await delay(); 
+        const d = getLocalStorage<T[]>(key, def); 
+        const i = d.findIndex(x=>x.id===item.id); 
+        if(i>-1) d[i]=item; 
+        setLocalStorage(key, d);
+        // Invalidate cache
+        cacheManager.invalidate(key);
+    },
+    
+    upsert: async <T extends {id:string}>(key: string, item: T, def: T[] = []) => { 
+        await delay(); 
+        const d = getLocalStorage<T[]>(key, def); 
+        const i = d.findIndex(x=>x.id===item.id); 
+        if(i>-1) d[i]=item; else d.push(item); 
+        setLocalStorage(key, d);
+        // Invalidate cache
+        cacheManager.invalidate(key);
+    },
+    
+    delete: async <T extends {id:string}>(key: string, id: string, def: T[] = []) => { 
+        await delay(); 
+        const d = getLocalStorage<T[]>(key, def); 
+        const filtered = d.filter(x=>x.id!==id);
+        setLocalStorage(key, filtered);
+        // Invalidate cache
+        cacheManager.invalidate(key);
+    }
 };
 
 export const initStore = () => {

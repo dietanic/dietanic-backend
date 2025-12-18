@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { CatalogService } from '../../services/storeService';
 import { generateProductDescription } from '../../services/geminiService';
 import { Product, SubscriptionPlan, ProductVariation, NutritionalInfo } from '../../types';
-import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity, FileText, Barcode } from 'lucide-react';
+import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity, FileText, Barcode, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../App';
 import { InventoryControl } from './InventoryControl';
 
@@ -19,6 +19,7 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('catalog');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Form State
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
@@ -43,6 +44,7 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
   useEffect(() => {
       // Reset view and form when mode switches
       setViewMode('catalog');
+      setError(null);
       setNewProduct({
         name: '', price: 0, category: mode === 'subscriptions' ? 'Weekly Subscriptions' : 'Signature Salads', 
         ingredients: [], image: 'https://picsum.photos/400/400?random=' + Math.floor(Math.random() * 100),
@@ -57,68 +59,90 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
 
   const refreshData = async () => {
     setIsLoading(true);
-    const allProducts = await CatalogService.getProducts();
-    setProducts(allProducts);
-    setIsLoading(false);
+    try {
+        const allProducts = await CatalogService.getProducts();
+        setProducts(allProducts);
+    } catch (err) {
+        console.error("Failed to load products", err);
+        setError("Failed to load inventory data. Please try refreshing.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name) return;
+    setError(null);
     
-    // Logic for price/stock calculation based on variations/plans
-    let finalPrice = Number(newProduct.price) || 0;
-    let finalStock = Number(newProduct.stock) || 0;
+    try {
+        // Logic for price/stock calculation based on variations/plans
+        let finalPrice = Number(newProduct.price) || 0;
+        let finalStock = Number(newProduct.stock) || 0;
 
-    if (newProduct.isSubscription && newProduct.subscriptionPlans?.length) {
-        finalPrice = Math.min(...newProduct.subscriptionPlans.map(p => p.price));
-    } else if (hasVariations && newProduct.variations?.length) {
-        finalPrice = Math.min(...newProduct.variations.map(v => v.price));
-        finalStock = newProduct.variations.reduce((acc, v) => acc + v.stock, 0);
+        if (newProduct.isSubscription && newProduct.subscriptionPlans?.length) {
+            finalPrice = Math.min(...newProduct.subscriptionPlans.map(p => p.price));
+        } else if (hasVariations && newProduct.variations?.length) {
+            finalPrice = Math.min(...newProduct.variations.map(v => v.price));
+            finalStock = newProduct.variations.reduce((acc, v) => acc + v.stock, 0);
+        }
+
+        const product: Product = {
+          id: Date.now().toString(),
+          name: newProduct.name!,
+          price: finalPrice,
+          category: newProduct.category || 'Signature Salads',
+          description: newProduct.description || 'Fresh and healthy.',
+          image: newProduct.image!,
+          isSubscription: mode === 'subscriptions',
+          ingredients: newProduct.ingredients || [],
+          stock: finalStock,
+          sku: newProduct.sku,
+          barcode: newProduct.barcode, // New
+          lowStockThreshold: Number(newProduct.lowStockThreshold),
+          subscriptionPlans: newProduct.subscriptionPlans,
+          subscriptionFeatures: newProduct.subscriptionFeatures,
+          variations: hasVariations ? newProduct.variations : [],
+          nutritionalInfo: newProduct.nutritionalInfo,
+          itemType: newProduct.itemType,
+          hsnSacCode: newProduct.hsnSacCode
+        };
+
+        await CatalogService.addProduct(product);
+        setViewMode('catalog');
+        refreshData();
+    } catch (err: any) {
+        console.error("Failed to add product", err);
+        setError(err.message || "Failed to save product. Please try again.");
     }
-
-    const product: Product = {
-      id: Date.now().toString(),
-      name: newProduct.name!,
-      price: finalPrice,
-      category: newProduct.category || 'Signature Salads',
-      description: newProduct.description || 'Fresh and healthy.',
-      image: newProduct.image!,
-      isSubscription: mode === 'subscriptions',
-      ingredients: newProduct.ingredients || [],
-      stock: finalStock,
-      sku: newProduct.sku,
-      barcode: newProduct.barcode, // New
-      lowStockThreshold: Number(newProduct.lowStockThreshold),
-      subscriptionPlans: newProduct.subscriptionPlans,
-      subscriptionFeatures: newProduct.subscriptionFeatures,
-      variations: hasVariations ? newProduct.variations : [],
-      nutritionalInfo: newProduct.nutritionalInfo,
-      itemType: newProduct.itemType,
-      hsnSacCode: newProduct.hsnSacCode
-    };
-
-    await CatalogService.addProduct(product);
-    setViewMode('catalog');
-    refreshData();
   };
 
   const handleDeleteProduct = async (id: string) => {
     if (!isAdmin) return alert("Only Administrators can delete products.");
     if (confirm('Are you sure you want to delete this item?')) {
-      await CatalogService.deleteProduct(id);
-      refreshData();
+        try {
+            await CatalogService.deleteProduct(id);
+            refreshData();
+        } catch (err: any) {
+            alert("Failed to delete product: " + err.message);
+        }
     }
   };
 
   const handleGenerateDescription = async () => {
     setIsGeneratingAI(true);
-    const contextStr = mode === 'subscriptions'
-        ? `Subscription Plan: ${newProduct.subscriptionFeatures?.join(', ')}`
-        : `Ingredients: ${newProduct.ingredients?.join(", ")}`;
-    const description = await generateProductDescription(newProduct.name || "", contextStr);
-    setNewProduct({ ...newProduct, description });
-    setIsGeneratingAI(false);
+    setError(null);
+    try {
+        const contextStr = mode === 'subscriptions'
+            ? `Subscription Plan: ${newProduct.subscriptionFeatures?.join(', ')}`
+            : `Ingredients: ${newProduct.ingredients?.join(", ")}`;
+        const description = await generateProductDescription(newProduct.name || "", contextStr);
+        setNewProduct({ ...newProduct, description });
+    } catch (err) {
+        setError("AI Generation failed. Check your API key or connection.");
+    } finally {
+        setIsGeneratingAI(false);
+    }
   };
 
   const convertFileToBase64 = (file: File): Promise<string> => {
@@ -132,8 +156,12 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
 
   const handleImageUpload = async (file?: File) => {
       if(file) {
-          const base64 = await convertFileToBase64(file);
-          setNewProduct({...newProduct, image: base64});
+          try {
+              const base64 = await convertFileToBase64(file);
+              setNewProduct({...newProduct, image: base64});
+          } catch (err) {
+              setError("Failed to process image file.");
+          }
       }
   };
 
@@ -174,6 +202,18 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                 </button>
             </div>
         </div>
+
+        {/* Global Error Display for Component */}
+        {error && (
+            <div className="mx-6 mt-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 flex items-start gap-2 rounded-r-md">
+                <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+                <div>
+                    <p className="font-bold text-sm">Error Detected</p>
+                    <p className="text-sm">{error}</p>
+                </div>
+                <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-700"><X size={16}/></button>
+            </div>
+        )}
 
         {/* View Content */}
         {viewMode === 'catalog' && (

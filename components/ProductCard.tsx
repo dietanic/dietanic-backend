@@ -25,6 +25,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [cardQuantity, setCardQuantity] = useState(1);
   const [shareCopied, setShareCopied] = useState(false);
   
+  // Price Tier State
+  const [selectedTier, setSelectedTier] = useState<'standard' | 'wholesale'>('standard');
+  
   // Rating State for Card Face
   const [avgRating, setAvgRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -33,17 +36,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const inWishlist = isInWishlist(product.id);
   const isCompared = isInCompare(product.id);
 
+  // Determine availability of tier selector: Only for simple products (no subs, no variations)
+  const showTierSelector = product.wholesalePrice && !product.isSubscription && (!product.variations || product.variations.length === 0);
+
   // Dynamic Pricing Logic
-  // Check if user has a wholesale tier assigned in their profile
-  const isWholesaleUser = user.priceTier === 'wholesale';
-  
-  // Apply discount for wholesale users on all products (simplified logic for demo)
-  const displayPrice = isWholesaleUser ? product.price * 0.8 : product.price;
+  const displayPrice = (selectedTier === 'wholesale' && showTierSelector && product.wholesalePrice) 
+      ? product.wholesalePrice 
+      : product.price;
 
   // Stock Logic
   const lowStockThreshold = product.lowStockThreshold || 5;
   const isLowStock = product.stock > 0 && product.stock <= lowStockThreshold;
   const isOutOfStock = product.stock <= 0;
+
+  // Reset tier on product change
+  useEffect(() => {
+      setSelectedTier('standard');
+  }, [product.id]);
 
   // Fetch ratings on mount so they appear on the card
   useEffect(() => {
@@ -82,7 +91,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         variationToAdd = product.variations[0];
     }
 
-    addToCart(product, defaultPlan, variationToAdd, cardQuantity);
+    addToCart(product, defaultPlan, variationToAdd, cardQuantity, selectedTier);
     
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
@@ -227,49 +236,69 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         </div>
                     )}
                 </div>
-                <div className="mt-5 flex items-center justify-between">
-                    <div>
-                        {/* Pricelist Display */}
-                        <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            {product.isSubscription ? 'From ' : ''}
-                            ₹{displayPrice.toFixed(2)}
-                            {isWholesaleUser && (
-                                <span className="text-xs text-gray-400 line-through font-normal">₹{product.price.toFixed(2)}</span>
-                            )}
-                        </p>
-                        {product.isSubscription && <span className="text-xs text-gray-400 font-medium">per week</span>}
-                        {isWholesaleUser && <span className="text-[10px] text-brand-600 font-bold uppercase">Wholesale</span>}
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {/* Quantity Selector on Card */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                            <select 
-                                value={cardQuantity}
-                                onChange={(e) => setCardQuantity(Number(e.target.value))}
-                                disabled={isOutOfStock}
-                                className="block w-14 rounded-md border-gray-300 py-1.5 text-base focus:border-brand-500 focus:outline-none focus:ring-brand-500 sm:text-xs border text-center disabled:bg-gray-100"
+                
+                <div className="mt-5">
+                    {/* Price Tier Selector */}
+                    {showTierSelector && (
+                        <div className="flex bg-gray-100 p-1 rounded-lg mb-3" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                                onClick={() => setSelectedTier('standard')} 
+                                className={`flex-1 text-[10px] uppercase font-bold py-1.5 rounded-md transition-all ${selectedTier === 'standard' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                             >
-                                {[1, 2, 3, 4, 5].map(num => (
-                                    <option key={num} value={num}>{num}</option>
-                                ))}
-                            </select>
+                                Standard
+                            </button>
+                            <button 
+                                onClick={() => setSelectedTier('wholesale')} 
+                                className={`flex-1 text-[10px] uppercase font-bold py-1.5 rounded-md transition-all ${selectedTier === 'wholesale' ? 'bg-white shadow text-brand-700' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Wholesale
+                            </button>
                         </div>
+                    )}
 
-                        <button
-                            onClick={handleAdd}
-                            disabled={isOutOfStock}
-                            className={`p-2 rounded-full transition-all duration-300 z-20 shadow-sm ${
-                            added 
-                                ? 'bg-brand-600 text-white scale-110' 
-                                : isOutOfStock 
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : 'bg-gray-100 text-gray-900 hover:bg-brand-600 hover:text-white hover:shadow-md'
-                            }`}
-                            title={isOutOfStock ? "Out of Stock" : "Add to Cart"}
-                        >
-                            {added ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                        </button>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            {/* Pricelist Display */}
+                            <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                {product.isSubscription ? 'From ' : ''}
+                                ₹{displayPrice.toFixed(2)}
+                                {selectedTier === 'wholesale' && showTierSelector && (
+                                    <span className="text-xs text-gray-400 line-through font-normal">₹{product.price.toFixed(2)}</span>
+                                )}
+                            </p>
+                            {product.isSubscription && <span className="text-xs text-gray-400 font-medium">per week</span>}
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                            {/* Quantity Selector on Card */}
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <select 
+                                    value={cardQuantity}
+                                    onChange={(e) => setCardQuantity(Number(e.target.value))}
+                                    disabled={isOutOfStock}
+                                    className="block w-14 rounded-md border-gray-300 py-1.5 text-base focus:border-brand-500 focus:outline-none focus:ring-brand-500 sm:text-xs border text-center disabled:bg-gray-100"
+                                >
+                                    {[1, 2, 3, 4, 5].map(num => (
+                                        <option key={num} value={num}>{num}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                onClick={handleAdd}
+                                disabled={isOutOfStock}
+                                className={`p-2 rounded-full transition-all duration-300 z-20 shadow-sm ${
+                                added 
+                                    ? 'bg-brand-600 text-white scale-110' 
+                                    : isOutOfStock 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-gray-100 text-gray-900 hover:bg-brand-600 hover:text-white hover:shadow-md'
+                                }`}
+                                title={isOutOfStock ? "Out of Stock" : "Add to Cart"}
+                            >
+                                {added ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

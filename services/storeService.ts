@@ -13,7 +13,6 @@ export * from './pos';
 export * from './marketing';
 export * from './wallet';
 export * from './settings';
-export * from './finance';
 export * from './security'; 
 export * from './apiGateway';
 export * from './chainService';

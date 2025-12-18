@@ -1,4 +1,5 @@
-import { STORAGE_KEYS, delay, getLocalStorage, initStore } from './storage';
+
+import { STORAGE_KEYS, delay, getLocalStorage, initStore, DB } from './storage';
 
 export const DatabaseService = {
     getFullSnapshot: async () => {
@@ -16,7 +17,12 @@ export const DatabaseService = {
 
     resetDatabase: async () => {
         localStorage.clear();
+        // The clear cache logic is handled automatically if we restart or reload,
+        // but for a runtime reset we should ensure it's wiped.
+        // We'll just rely on the page reload or clear logic if exposed,
+        // but here we just re-init seeds.
         initStore();
         await delay(1000);
+        window.location.reload(); // Hard reload is safest for full cache wipe
     }
 };

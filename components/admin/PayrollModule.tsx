@@ -1,6 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
-import { PayrollService, IdentityService, FinanceService } from '../../services/storeService';
+import { PayrollService, IdentityService, APIGateway } from '../../services/storeService';
 import { User, Payslip, SalaryStructure, Expense } from '../../types';
 import { DollarSign, User as UserIcon, FileText, Settings, Download, CheckCircle, Calculator, Plus, Trash2 } from 'lucide-react';
 

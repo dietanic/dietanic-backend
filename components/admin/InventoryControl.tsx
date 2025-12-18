@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { CatalogService, FinanceService } from '../../services/storeService';
+import { CatalogService, APIGateway } from '../../services/storeService'; // Use APIGateway
 import { Product, PurchaseOrder, Vendor } from '../../types';
 import { Loader, AlertTriangle, CheckCircle, XCircle, Search, Save, Package, DollarSign, ScanLine, RefreshCcw, Box, ShoppingCart, Truck, Barcode } from 'lucide-react';
 
@@ -56,7 +57,7 @@ export const InventoryControl: React.FC<InventoryControlProps> = ({ filterMode }
         setLoading(true);
         const [allProducts, allVendors, allPOs] = await Promise.all([
             CatalogService.getProducts(),
-            FinanceService.getVendors(),
+            APIGateway.Finance.Payables.getVendors(), // Use APIGateway
             CatalogService.getPurchaseOrders()
         ]);
         

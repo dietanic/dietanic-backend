@@ -1,245 +1,42 @@
 
-import React, { useState, useEffect } from 'react';
-import { POSService, CatalogService, posEvents, IdentityService, WalletService, SalesService, CustomerService } from '../services/storeService';
-import { Table, Product, Category, CartItem, Reservation, User, CustomerProfile, Order } from '../types';
+import React from 'react';
 import { 
-    LayoutGrid, Users, Coffee, Utensils, X, Check, ChefHat, 
-    CreditCard, Trash2, Plus, Minus, ArrowLeft, RefreshCw, 
-    Edit3, Save, Move, CalendarClock, Phone, Clock, DollarSign, Wallet, Search, UserCheck, ShieldCheck, Lock
+    LayoutGrid, Users, Utensils, Check, ChefHat, 
+    CreditCard, Trash2, Edit3, CalendarClock, Phone, Clock, DollarSign, Wallet, Search, X 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { usePOS } from '../hooks/usePOS';
+import { useAuth } from '../App';
 
 export const POS: React.FC = () => {
-    // Mode States
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [showReservations, setShowReservations] = useState(false);
-
-    // Data States
-    const [tables, setTables] = useState<Table[]>([]);
-    const [reservations, setReservations] = useState<Reservation[]>([]);
-    const [activeTable, setActiveTable] = useState<Table | null>(null);
-    const [selectedTableForEdit, setSelectedTableForEdit] = useState<Table | null>(null);
+    const { user } = useAuth();
     
-    // Terminal State
-    const [products, setProducts] = useState<Product[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [selectedCategory, setSelectedCategory] = useState<string>('All');
-    const [currentOrder, setCurrentOrder] = useState<CartItem[]>([]);
-    const [orderNotes, setOrderNotes] = useState('');
-    const [isSending, setIsSending] = useState(false);
-    
-    // Payment State
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Wallet'>('Cash');
-    const [cashReceived, setCashReceived] = useState<string>('');
-    const [customerSearch, setCustomerSearch] = useState('');
-    const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
-    const [allCustomers, setAllCustomers] = useState<CustomerProfile[]>([]);
-    const [allUsers, setAllUsers] = useState<User[]>([]);
-    const [processingPayment, setProcessingPayment] = useState(false);
-
-    // Combo/Course Modal
-    const [itemToCustomize, setItemToCustomize] = useState<Product | null>(null);
-    const [selectedCourse, setSelectedCourse] = useState<'Starter' | 'Main' | 'Dessert' | 'Beverage'>('Main');
+    // Deconstruct ViewModel
+    const {
+        tables, reservations, activeTable, selectedTableForEdit, isEditMode, showReservations,
+        categories, selectedCategory, displayProducts,
+        currentOrder, orderNotes, total, isSending,
+        isPaymentModalOpen, paymentMethod, cashReceived, customerSearch, selectedCustomer, processingPayment, filteredCustomers,
+        itemToCustomize, selectedCourse,
+        
+        toggleEditMode, toggleReservations,
+        setActiveTable, setSelectedCategory, setOrderNotes,
+        setPaymentMethod, setCashReceived, setCustomerSearch, setSelectedCustomer, setIsPaymentModalOpen,
+        setItemToCustomize, setSelectedCourse,
+        
+        handleTableSelect, handleGridClick, handleDeleteTable,
+        addToOrder, removeFromOrder, sendToKitchen, handlePaymentComplete, getCustomerName
+    } = usePOS();
 
     // Grid Configuration
     const GRID_COLS = 8;
     const GRID_ROWS = 6;
 
-    useEffect(() => {
-        loadData();
-        const handleUpdate = () => loadTables();
-        const handleResUpdate = () => loadReservations();
-        
-        posEvents.addEventListener('tables_updated', handleUpdate);
-        posEvents.addEventListener('reservations_updated', handleResUpdate);
-        
-        return () => {
-            posEvents.removeEventListener('tables_updated', handleUpdate);
-            posEvents.removeEventListener('reservations_updated', handleResUpdate);
-        };
-    }, []);
-
-    // Load customers when payment modal opens
-    useEffect(() => {
-        if(isPaymentModalOpen) {
-            const fetchCustomers = async () => {
-                const [c, u] = await Promise.all([
-                    CustomerService.getCustomers(),
-                    IdentityService.getUsers()
-                ]);
-                setAllCustomers(c);
-                setAllUsers(u);
-            };
-            fetchCustomers();
-        } else {
-            setCashReceived('');
-            setSelectedCustomer(null);
-            setCustomerSearch('');
-        }
-    }, [isPaymentModalOpen]);
-
-    const loadData = async () => {
-        await loadTables();
-        await loadReservations();
-        const [p, c] = await Promise.all([CatalogService.getProducts(), CatalogService.getCategories()]);
-        setProducts(p);
-        setCategories(c);
-    };
-
-    const loadTables = async () => {
-        const t = await POSService.getTables();
-        setTables(t);
-    };
-
-    const loadReservations = async () => {
-        const r = await POSService.getReservations();
-        setReservations(r);
-    };
-
-    // --- POS Logic ---
-    const handleTableSelect = (table: Table) => {
-        if (isEditMode) {
-            setSelectedTableForEdit(table);
-        } else {
-            setActiveTable(table);
-            // In a real app, fetch existing order for this table if occupied
-            setCurrentOrder([]); 
-        }
-    };
-
-    const addToOrder = (product: Product, course: 'Starter' | 'Main' | 'Dessert' | 'Beverage') => {
-        const newItem: CartItem = {
-            ...product,
-            quantity: 1,
-            cartItemId: Date.now().toString(),
-            course
-        };
-        setCurrentOrder(prev => [...prev, newItem]);
-        setItemToCustomize(null); 
-    };
-
-    const removeFromOrder = (cartItemId: string) => {
-        setCurrentOrder(prev => prev.filter(i => i.cartItemId !== cartItemId));
-    };
-
-    const sendToKitchen = async () => {
-        if (!activeTable || currentOrder.length === 0) return;
-        setIsSending(true);
-        await POSService.sendOrderToKitchen(activeTable.id, currentOrder, orderNotes);
-        setIsSending(false);
-        // Don't clear order in UI, keep it visible until paid
-    };
-
-    const total = currentOrder.reduce((acc, item) => acc + item.price, 0);
-
-    const handlePaymentComplete = async () => {
-        if (!activeTable) return;
-        setProcessingPayment(true);
-
-        try {
-            // 1. Create Order Record (for Sales Service)
-            const order: Order = {
-                id: `pos_${Date.now()}`,
-                userId: selectedCustomer ? selectedCustomer.userId : 'guest',
-                items: currentOrder,
-                total: total,
-                subtotal: total,
-                status: 'delivered', // POS orders are immediate
-                date: new Date().toISOString(),
-                shippingAddress: { street: 'Dine-In', city: '', state: '', zip: '' },
-                paidWithWallet: paymentMethod === 'Wallet' ? total : 0,
-                marketingData: { 
-                    utm_source: 'POS',
-                    landing_page: '/pos',
-                    referrer: 'Internal' 
-                }
-            };
-
-            // 2. Process Specific Payment Methods
-            if (paymentMethod === 'Wallet') {
-                if (!selectedCustomer) throw new Error("No customer selected");
-                await WalletService.charge(selectedCustomer.userId, total, order.id);
-            }
-
-            // 3. Create Order via Orchestrator (handles Stock deduction etc)
-            await SalesService.createOrder(order);
-
-            // 4. Clear Table
-            await POSService.billTable(activeTable.id);
-            
-            // 5. Reset UI
-            setIsPaymentModalOpen(false);
-            setActiveTable(null);
-            setCurrentOrder([]);
-            setOrderNotes('');
-        } catch (error: any) {
-            alert(`Payment Failed: ${error.message}`);
-        } finally {
-            setProcessingPayment(false);
-        }
-    };
-
-    // --- Editor Logic ---
-    const handleGridClick = async (x: number, y: number) => {
-        if (!isEditMode) return;
-
-        // Check if spot is occupied
-        const existingTable = tables.find(t => t.x === x && t.y === y);
-
-        if (selectedTableForEdit) {
-            // Move Logic
-            if (existingTable && existingTable.id !== selectedTableForEdit.id) {
-                alert("Spot already occupied!");
-                return;
-            }
-            
-            const updatedTables = tables.map(t => 
-                t.id === selectedTableForEdit.id ? { ...t, x, y } : t
-            );
-            await POSService.saveTables(updatedTables);
-            setSelectedTableForEdit(null); // Deselect after move
-        } else if (existingTable) {
-            // Select existing
-            setSelectedTableForEdit(existingTable);
-        } else {
-            // Add New Table logic could go here (e.g., prompt to create)
-            if (confirm("Create new table here?")) {
-                const name = prompt("Enter Table Name (e.g. T10):");
-                if (name) {
-                    const newTable: Table = {
-                        id: `t_${Date.now()}`,
-                        name,
-                        capacity: 4,
-                        status: 'available',
-                        x, y,
-                        type: 'square'
-                    };
-                    await POSService.saveTables([...tables, newTable]);
-                }
-            }
-        }
-    };
-
-    const handleDeleteTable = async () => {
-        if (selectedTableForEdit && confirm(`Delete ${selectedTableForEdit.name}?`)) {
-            const updatedTables = tables.filter(t => t.id !== selectedTableForEdit.id);
-            await POSService.saveTables(updatedTables);
-            setSelectedTableForEdit(null);
-        }
-    };
-
-    const toggleEditMode = () => {
-        setIsEditMode(!isEditMode);
-        setSelectedTableForEdit(null);
-    };
-
-    // --- Helpers ---
+    // Helper to get Reservation for a table
     const getTableReservation = (tableId: string) => {
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const currentHour = now.getHours();
-
         return reservations.find(r => 
             r.tableId === tableId && 
             r.date === dateStr && 
@@ -248,18 +45,7 @@ export const POS: React.FC = () => {
         );
     };
 
-    const displayProducts = selectedCategory === 'All' ? products : products.filter(p => p.category === selectedCategory);
-
-    // Customer Search for Wallet
-    const filteredCustomers = customerSearch ? allCustomers.filter(c => {
-        const u = allUsers.find(user => user.id === c.userId);
-        const name = u?.name.toLowerCase() || '';
-        return c.phone.includes(customerSearch) || name.includes(customerSearch.toLowerCase());
-    }) : [];
-
-    const getCustomerName = (id: string) => allUsers.find(u => u.id === id)?.name || 'Unknown';
-
-    // Cash Calc
+    // Calculate Change Due
     const cashAmount = parseFloat(cashReceived) || 0;
     const changeDue = Math.max(0, cashAmount - total);
 
@@ -270,7 +56,7 @@ export const POS: React.FC = () => {
                 <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-900 text-white shadow-md">
                     <h1 className="font-bold text-xl flex items-center gap-2"><LayoutGrid /> Floor Plan</h1>
                     <div className="flex gap-2">
-                         <button onClick={() => setShowReservations(!showReservations)} className={`p-2 rounded hover:bg-gray-700 ${showReservations ? 'bg-gray-700' : ''}`} title="Reservations">
+                         <button onClick={toggleReservations} className={`p-2 rounded hover:bg-gray-700 ${showReservations ? 'bg-gray-700' : ''}`} title="Reservations">
                             <CalendarClock size={20} />
                         </button>
                         <button onClick={toggleEditMode} className={`p-2 rounded hover:bg-gray-700 ${isEditMode ? 'bg-brand-600' : ''}`} title="Edit Layout">
@@ -374,7 +160,7 @@ export const POS: React.FC = () => {
                     {/* Terminal Header */}
                     <div className="h-16 border-b border-gray-200 flex justify-between items-center px-6 bg-white shadow-sm z-10">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setActiveTable(null)} className="lg:hidden p-2 bg-gray-100 rounded-full"><ArrowLeft /></button>
+                            <button onClick={() => setActiveTable(null)} className="lg:hidden p-2 bg-gray-100 rounded-full"><X size={18} /></button>
                             <div>
                                 <h2 className="text-lg font-bold text-gray-900">{activeTable.name}</h2>
                                 <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Order Taking</span>
@@ -390,7 +176,7 @@ export const POS: React.FC = () => {
                                 disabled={currentOrder.length === 0 || isSending}
                                 className="bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                              >
-                                 {isSending ? <RefreshCw className="animate-spin" size={18}/> : <ChefHat size={18} />}
+                                 <ChefHat size={18} />
                                  <span className="hidden sm:inline">To Kitchen</span>
                              </button>
                              <button 
@@ -662,15 +448,6 @@ export const POS: React.FC = () => {
                                         </div>
                                         <h3 className="text-xl font-bold text-gray-800">Ready to Scan</h3>
                                         <p className="text-gray-500 mt-2 mb-4">Swipe card or scan QR code on terminal.</p>
-                                        
-                                        {/* PCI Compliance Indicator */}
-                                        <div className="bg-green-50 px-4 py-2 rounded-full border border-green-200 flex items-center gap-2 text-green-700">
-                                            <ShieldCheck size={16} />
-                                            <span className="text-xs font-bold uppercase">PCI DSS Compliant Mode</span>
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
-                                            <Lock size={10} /> Transactions are encrypted
-                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -680,11 +457,11 @@ export const POS: React.FC = () => {
                         <div className="p-6 border-t border-gray-200 bg-white flex justify-between items-center">
                             <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-500 font-bold hover:text-gray-800">Cancel</button>
                             <button 
-                                onClick={handlePaymentComplete}
+                                onClick={() => handlePaymentComplete(user.id)}
                                 disabled={processingPayment || (paymentMethod === 'Cash' && changeDue < 0) || (paymentMethod === 'Wallet' && (!selectedCustomer || selectedCustomer.walletBalance < total))}
                                 className="bg-brand-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-brand-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                                {processingPayment ? <RefreshCw className="animate-spin"/> : <Check size={24}/>}
+                                {processingPayment ? <span className="animate-spin">...</span> : <Check size={24}/>}
                                 Confirm Payment
                             </button>
                         </div>
