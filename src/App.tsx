@@ -26,10 +26,9 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const { loading } = useAuth();
 
-  const currentPath = location.hash.substring(1);
-  const portalPaths = ['/pos', '/login', '/vendor-portal', '/account'];
-  const isPortalPage = portalPaths.some(path => currentPath.startsWith(path));
-  const isAdminPage = currentPath.startsWith('/admin');
+  const currentPath = location.hash.substring(1); // e.g., #/account -> /account
+  const portalLayoutPaths = ['/admin', '/pos', '/login', '/vendor-portal', '/account'];
+  const isPortalLayout = portalLayoutPaths.some(path => currentPath.startsWith(path));
 
   if (loading) {
     return <div className="h-screen w-screen flex items-center justify-center"><p>Loading...</p></div>;
@@ -37,29 +36,26 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* --- START DEBUG BLOCK --- */}
       <div style={{
-        backgroundColor: '#ff4136', // Red background
-        color: 'white',
-        padding: '12px',
+        backgroundColor: 'yellow',
+        color: 'black',
+        padding: '10px',
         position: 'fixed',
-        top: '60px', 
+        top: '10px',
         left: '10px',
         zIndex: 9999,
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontFamily: 'monospace'
+        border: '2px solid black',
+        borderRadius: '5px',
+        fontFamily: 'monospace',
+        fontSize: '14px'
       }}>
-        <p style={{fontWeight: 'bold', marginBottom: '5px'}}>ROUTER DEBUG</p>
-        <p>pathname: {location.pathname}</p>
-        <p>hash: {location.hash}</p>
-        <p>currentPath: {currentPath}</p>
-        <p>isPortalPage: {isPortalPage.toString()}</p>
+        <p style={{ fontWeight: 'bold' }}>[FOR DEBUGGING] Please tell me what this box says on the /account page:</p>
+        <p>Path from Hash: <strong>{currentPath}</strong></p>
+        <p>Should hide footer? <strong>{isPortalLayout.toString()}</strong></p>
       </div>
-      {/* --- END DEBUG BLOCK --- */}
       
-      {!isPortalPage && !isAdminPage && <Header />}
-      <main className="flex-grow pt-16"> {/* Added padding to avoid overlap with header */}
+      {!isPortalLayout && <Header />}
+      <main className="flex-grow pt-16">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
@@ -71,7 +67,7 @@ const AppContent: React.FC = () => {
           <Route path="/account" element={<Account />} />
         </Routes>
       </main>
-      {!isPortalPage && !isAdminPage && <Footer />}
+      {!isPortalLayout && <Footer />}
     </div>
   );
 };
