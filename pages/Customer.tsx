@@ -802,5 +802,6 @@ export const Customer: React.FC = () => {
                 </div>
             </div>
         </div>
+    </div>
   );
 };

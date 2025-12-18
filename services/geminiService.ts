@@ -1,8 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { KnowledgeService } from './knowledge';
 
-// Fix: Standardized initialization using direct environment variable access
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization to avoid errors when API key is not set
+let ai: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!ai && process.env.API_KEY) {
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return ai;
+};
 
 export const locateOrderDestination = async (address: string): Promise<{title: string, uri: string} | null> => {
   if (!process.env.API_KEY) {
@@ -10,7 +17,9 @@ export const locateOrderDestination = async (address: string): Promise<{title: s
       return null;
   }
   try {
-    const response = await ai.models.generateContent({
+    const aiClient = getAI();
+    if (!aiClient) return null;
+    const response = await aiClient.models.generateContent({
       // Maps grounding is specifically supported in the 2.5 series
       model: 'gemini-2.5-flash',
       contents: `Find this precise location on Google Maps: ${address}`,
@@ -70,7 +79,9 @@ export const askNutritionist = async (question: string): Promise<string> => {
     USER QUESTION: "${question}"
     `;
 
-    const response = await ai.models.generateContent({
+    const aiClient = getAI();
+    if (!aiClient) return "I'm currently offline. Please try again later.";
+    const response = await aiClient.models.generateContent({
       model: model,
       contents: prompt,
     });
@@ -93,7 +104,9 @@ export const generateProductDescription = async (name: string, ingredients: stri
     const model = 'gemini-3-flash-preview';
     const prompt = `Write a mouth-watering, short marketing description (max 2 sentences) for a salad or meal named "${name}" containing the following ingredients: ${ingredients}. Focus on health benefits and freshness.`;
 
-    const response = await ai.models.generateContent({
+    const aiClient = getAI();
+    if (!aiClient) return "Fresh and delicious ingredients prepared daily.";
+    const response = await aiClient.models.generateContent({
       model: model,
       contents: prompt,
     });
@@ -146,7 +159,9 @@ export const evaluateAdminQuery = async (query: string, availableContext: string
         - "Hello" -> {"intent": "GENERAL", "message": "Hello! I'm ready to help with store operations."}
         `;
 
-        const response = await ai.models.generateContent({
+        const aiClient = getAI();
+        if (!aiClient) return { intent: 'GENERAL', message: 'Agent Offline (Missing API Key)' };
+        const response = await aiClient.models.generateContent({
             model: model,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
