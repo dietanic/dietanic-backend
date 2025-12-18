@@ -5,6 +5,7 @@ import { STORAGE_KEYS, DB, delay } from './storage';
 export const DiscountService = {
   getDiscounts: () => DB.getAll<Discount>(STORAGE_KEYS.DISCOUNTS, []),
   addDiscount: (d: Discount) => DB.add(STORAGE_KEYS.DISCOUNTS, d, []),
+  updateDiscount: (d: Discount) => DB.update(STORAGE_KEYS.DISCOUNTS, d, []),
   deleteDiscount: (id: string) => DB.delete(STORAGE_KEYS.DISCOUNTS, id, []),
   validateDiscount: async (code: string, total: number, cats: string[]) => {
     await delay();
