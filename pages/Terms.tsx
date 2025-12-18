@@ -3,7 +3,7 @@ import React from 'react';
 
 export const Terms: React.FC = () => {
   return (
-    <div className="bg-white min-h-screen pt-32 pb-12">
+    <div className="bg-white min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}

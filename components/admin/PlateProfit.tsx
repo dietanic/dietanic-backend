@@ -1,10 +1,12 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
     Calculator, Plus, Trash2, TrendingUp, DollarSign, 
     PieChart, Sparkles, AlertCircle, Info, ArrowRight,
     ChefHat, Scale, Layers
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+// Fix: Updated import for GoogleGenAI to import directly from @google/genai
+import { GoogleGenAI } from "@google/genai"; 
 
 interface Ingredient {
     id: string;

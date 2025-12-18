@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { evaluateAdminQuery, AgentAction } from '../../services/geminiService';
+import { evaluateAdminQuery, AgentAction } from '../../services/gemini'; // Updated import
 import { SalesService, IdentityService, CatalogService } from '../../services/storeService';
 import { Bot, X, Send, Command, Sparkles, ChevronRight, Zap } from 'lucide-react';
 

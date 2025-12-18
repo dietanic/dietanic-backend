@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { ServerCrash, RefreshCw } from 'lucide-react';
 
 interface Props {
@@ -10,14 +10,11 @@ interface State {
   error: Error | null;
 }
 
-// Fix: Explicitly using React.Component to ensure props property is correctly inherited and recognized by the compiler
 export class ErrorBoundary extends React.Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null
   };
-
-  // Fix: Removed redundant constructor that was only passing props to super
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -62,7 +59,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Fix: Correctly returning children from props to satisfy ReactNode requirement
     return this.props.children;
   }
 }

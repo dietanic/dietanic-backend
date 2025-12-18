@@ -1,8 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { CatalogService } from '../../services/storeService';
-// Fix: Updated import path for generateProductDescription to point to the correct gemini service file
-import { generateProductDescription } from '../../services/gemini'; 
+import { generateProductDescription } from '../../services/gemini'; // Updated import
 import { Product, SubscriptionPlan, ProductVariation, NutritionalInfo } from '../../types';
 import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity, FileText, Barcode, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../App';

@@ -1,9 +1,10 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Minus, User as UserIcon, Check, Star, Power, Sparkles } from 'lucide-react';
 import { useAuth } from '../App';
 import { EngagementService, chatEvents } from '../services/storeService';
-import { askNutritionist } from '../services/geminiService';
+import { askNutritionist } from '../services/gemini'; // Updated import
 import { ChatSession, ChatMessage } from '../types';
 
 export const TrackCommWidget: React.FC = () => {

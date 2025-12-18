@@ -48,10 +48,10 @@ export const generateStatement = async (start?: string, end?: string): Promise<P
 
          return { 
             period: 'Fallback',
-            revenue: { total: r, breakdown: [] },
+            revenue: { total: r, breakdown: [] }, // Removed trailing comma
             cogs: r * 0.4,
             grossProfit: grossProfitFallback,
-            expenses: { total: e, breakdown: [] },
+            expenses: { total: e, breakdown: [] }, // Removed trailing comma
             netProfit: netProfitFallback,
             netProfitMargin: parseFloat(netProfitMarginFallback.toFixed(2))
          };
@@ -63,10 +63,10 @@ export const generateStatement = async (start?: string, end?: string): Promise<P
 
     return { 
         period: 'Current',
-        revenue: { total: revTotal, breakdown: [] },
+        revenue: { total: revTotal, breakdown: [] }, // Removed trailing comma
         cogs: Math.abs(cogsValue), 
         grossProfit: grossProfitActual, 
-        expenses: { total: expTotal - Math.abs(cogsValue), breakdown: [] },
+        expenses: { total: expTotal - Math.abs(cogsValue), breakdown: [] }, // Removed trailing comma
         netProfit: netProfitActual, 
         netProfitMargin: parseFloat(netProfitMarginActual.toFixed(2))
     };

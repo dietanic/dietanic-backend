@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { SalesService, CatalogService, EngagementService, CustomerService, WalletService, IdentityService, APIGateway } from '../services/storeService';
-import { locateOrderDestination } from '../services/geminiService';
+import { locateOrderDestination } from '../services/gemini'; // Updated import
 import { Order, Product, CustomerProfile, WalletTransaction, Invoice, Quote } from '../types';
 import { 
   Package, MapPin, User as UserIcon, Heart, Truck, CheckCircle, Clock, 
@@ -802,6 +802,5 @@ export const Customer: React.FC = () => {
                 </div>
             </div>
         </div>
-    </div>
   );
 };

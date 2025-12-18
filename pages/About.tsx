@@ -75,7 +75,7 @@ export const About: React.FC = () => {
               </h2>
               <ul className="space-y-3">
                 <li className="flex gap-2"><span className="font-bold text-gray-900">Dietanic AI:</span> Proprietary LLM for nutritional advice.</li>
-                <li className="flex gap-2"><span className="font-bold text-gray-900">Smart Logistics:</span> Route optimization for under 2hr delivery.</li>
+                <li className="flex gap-2"><span className="font-bold text-gray-900">Smart Logistics:</span> Route optimization for &lt; 2hr delivery.</li>
                 <li className="flex gap-2"><span className="font-bold text-gray-900">PlateProfit™:</span> Real-time margin and waste tracking.</li>
               </ul>
             </div>

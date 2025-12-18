@@ -1,11 +1,12 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CatalogService, GlobalEventBus, EVENTS } from '../services/storeService';
 import { Product, Category } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { Filter, Search, Loader, X, SlidersHorizontal, RefreshCw } from 'lucide-react';
-import { askNutritionist } from '../services/geminiService';
+import { askNutritionist } from '../services/gemini'; // Updated import
 
 export const Shop: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);

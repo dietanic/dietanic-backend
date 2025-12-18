@@ -21,35 +21,22 @@ export const useAppStore = () => {
     // Bootstrap Application
     useEffect(() => {
         const bootstrap = async () => {
-            try {
-                initStore();
-                
-                // Parallel Data Loading with timeout
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Loading timeout')), 5000)
-                );
-                
-                const [w, users, me] = await Promise.race([
-                    Promise.all([
-                        EngagementService.getWishlist(),
-                        IdentityService.getUsers(),
-                        IdentityService.getCurrentUser()
-                    ]),
-                    timeoutPromise
-                ]) as [string[], any[], any];
+            initStore();
+            
+            // Parallel Data Loading
+            const [w, users, me] = await Promise.all([
+                EngagementService.getWishlist(),
+                IdentityService.getUsers(),
+                IdentityService.getCurrentUser()
+            ]);
 
-                setWishlist(w || []);
-                setUsersList(users || []);
-                setCurrentUser(me);
-                setIsLoadingAuth(false);
-                
-                // Initialize Marketing Tracking
-                MarketingService.captureTrafficSource();
-            } catch (error) {
-                console.error('Bootstrap error:', error);
-                setCurrentUser({ id: 'guest', email: 'guest@dietanic.co', name: 'Guest', role: 'customer' } as any);
-                setIsLoadingAuth(false);
-            }
+            setWishlist(w);
+            setUsersList(users);
+            setCurrentUser(me);
+            setIsLoadingAuth(false);
+            
+            // Initialize Marketing Tracking
+            MarketingService.captureTrafficSource();
         };
         bootstrap();
     }, []);
