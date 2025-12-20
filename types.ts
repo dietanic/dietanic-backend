@@ -22,6 +22,8 @@ export interface NutritionalInfo {
   fat: number;
 }
 
+export type TrackingMode = 'simple' | 'batch' | 'serial';
+
 export interface Product {
   id: string;
   name: string;
@@ -33,7 +35,7 @@ export interface Product {
   image: string;
   isSubscription: boolean;
   ingredients?: string[];
-  stock: number;
+  stock: number; // Aggregate stock across all warehouses (Legacy/Simple view)
   sku?: string;
   barcode?: string;
   lowStockThreshold?: number;
@@ -44,6 +46,24 @@ export interface Product {
   itemType?: 'good' | 'service';
   hsnSacCode?: string;
   isGiftCard?: boolean;
+  trackingMode?: TrackingMode; // New: Tracking logic
+}
+
+// New: Granular Inventory Visibility
+export interface InventoryRecord {
+    id: string;
+    productId: string;
+    locationId: string; // Warehouse or Store ID
+    locationName: string;
+    locationType: 'Warehouse' | 'Store' | '3PL';
+    onHand: number;      // Physically present
+    allocated: number;   // Reserved for orders but not shipped
+    available: number;   // On Hand - Allocated (ATP)
+    inTransit: number;   // Coming from PO
+    returned: number;    // Pending processing
+    quarantined: number; // Damaged/Expired
+    lastSynced: string;
+    sourceSystem: 'Internal' | 'ERP' | 'WMS' | 'POS';
 }
 
 export interface Category {
@@ -126,6 +146,7 @@ export interface Invoice {
     taxAmount: number;
     payments: { id: string; date: string; amount: number; method: string }[];
     balanceDue: number;
+    lastPaymentReminder?: string; // Track last reminder date
 }
 
 export interface CustomerBilling {
@@ -195,6 +216,9 @@ export interface Order {
   assignedDriverId?: string;
   proofOfDelivery?: ProofOfDelivery;
   cancellationReason?: string;
+  testimonialRequested?: boolean; // Track if we asked for a review
+  fulfillmentType?: 'delivery' | 'pickup'; // New
+  pickupLocationId?: string; // New
 }
 
 export interface TaxSettings {
@@ -233,6 +257,8 @@ export interface PurchaseOrder {
     status: 'ordered' | 'received';
     items: { productId: string; productName: string; quantity: number; cost: number }[];
     total: number;
+    currency?: string; // New: Multi-currency
+    exchangeRate?: number; // New: Multi-currency
 }
 
 export interface Table {
@@ -279,6 +305,7 @@ export interface Expense {
     date: string;
     status: 'pending' | 'approved';
     relatedUserId?: string;
+    currency?: string;
 }
 
 export type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
@@ -292,6 +319,7 @@ export interface LedgerAccount {
     description?: string;
     balance: number; 
     isSystem?: boolean; 
+    currency?: string; // Base currency usually
 }
 
 export interface JournalLine {
@@ -310,6 +338,8 @@ export interface LedgerEntry {
     totalAmount: number;
     status: 'posted' | 'draft' | 'void';
     createdAt: string;
+    currency?: string; // Multi-currency support
+    exchangeRate?: number; // Multi-currency support
 }
 
 export interface BankTransaction {
@@ -346,6 +376,7 @@ export interface Vendor {
     email: string;
     category: string;
     balanceDue: number;
+    currency?: string;
 }
 
 export interface Bill {
@@ -362,6 +393,7 @@ export interface Bill {
     balanceDue: number;
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     attachments?: string[];
+    currency?: string;
 }
 
 export interface Project {
@@ -527,12 +559,46 @@ export interface ProductJourneyInfo {
     avgLTVAttributed: number;
 }
 
+// Data Models for Graph Logic
+export interface Warehouse {
+    id: string;
+    name: string;
+    type: 'Distribution Center' | 'Cold Storage' | 'Retail Outlet';
+    address: string;
+    manager: string;
+}
+
+export interface Batch {
+    id: string;
+    productId: string;
+    warehouseId: string;
+    batchNumber: string;
+    quantity: number;
+    expiryDate: string;
+    receivedDate: string;
+}
+
+export interface SerialNumber {
+    id: string;
+    productId: string;
+    warehouseId: string;
+    serialNumber: string;
+    status: 'Available' | 'Sold' | 'Defective' | 'RMA';
+}
+
+export interface OrganizationNode {
+    id: string;
+    name: string;
+    type: 'Headquarters' | 'Zone' | 'Region' | 'Branch' | 'Warehouse';
+    parentId?: string;
+}
+
 export interface GiftCard {
     id: string;
     code: string;
     initialValue: number;
     currentValue: number;
-    status: 'active' | 'redeemed' | 'cancelled';
+    status: 'active' | 'redeemed' | 'expired';
     purchasedByUserId: string;
     createdAt: string;
 }

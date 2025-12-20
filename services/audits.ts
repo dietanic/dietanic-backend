@@ -1,4 +1,5 @@
-import { getProducts } from './catalog';
+
+import { CatalogService } from './catalog';
 
 export interface AuditResult {
   score: number;
@@ -11,8 +12,8 @@ export interface AuditResult {
   }
 }
 
-export const performSEOAudit = (): AuditResult => {
-  const products = getProducts();
+export const performSEOAudit = async (): Promise<AuditResult> => {
+  const products = await CatalogService.getProducts();
   const issues: AuditResult['issues'] = [];
   
   let seoPoints = 100;

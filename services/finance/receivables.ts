@@ -1,7 +1,11 @@
-import { Quote, SalesOrder, Invoice, JournalLine } from '../../types';
+
+import { Quote, SalesOrder, Invoice, JournalLine, User } from '../../types';
 import { STORAGE_KEYS, DB, delay, getLocalStorage } from '../storage';
 import { checkLock } from './utils';
 import { createJournalEntry } from './ledger'; // Import from local finance microservice
+import { sendPaymentReminderEmail } from '../notifications';
+import { IdentityService } from '../identity';
+import { CustomerService } from '../customers';
 
 // Microservice: Finance Receivables
 // Handles Quotes, Sales Orders, and Customer Invoices
@@ -48,4 +52,49 @@ export const recordInvoicePayment = async (id: string, amount: number, method: s
         ],
         status: 'posted'
     });
+};
+
+export const sendBatchPaymentReminders = async (): Promise<number> => {
+    const invoices = await DB.getAll<Invoice>('dietanic_invoices');
+    const customers = await CustomerService.getCustomers();
+    const users = await IdentityService.getUsers();
+    
+    let sentCount = 0;
+    
+    // Find unpaid invoices
+    const unpaid = invoices.filter(inv => inv.balanceDue > 0 && inv.status !== 'paid');
+    
+    for (const inv of unpaid) {
+        // Find associated user. Invoice doesn't inherently link to userID in this simplified model, 
+        // so we have to do a fuzzy match on name or check Customer Profiles invoices.
+        // Better: Customer Profile links invoices to user.
+        
+        let targetUser: User | undefined;
+        
+        // Strategy: Look through all customer profiles to find this invoice ID
+        const profile = customers.find(c => c.billing.invoices.some(i => i.id === inv.id));
+        if (profile) {
+            targetUser = users.find(u => u.id === profile.userId);
+        }
+
+        if (targetUser) {
+            await sendPaymentReminderEmail(inv, targetUser);
+            // Update last reminder date
+            inv.lastPaymentReminder = new Date().toISOString();
+            sentCount++;
+        }
+    }
+    
+    // Save updated invoice states (lastPaymentReminder)
+    if (sentCount > 0) {
+        // In a real DB we'd update individually, here we overwrite the collection
+        // Re-merging the updated 'unpaid' into full list
+        const updatedInvoices = invoices.map(i => unpaid.find(u => u.id === i.id) || i);
+        // We can't use DB.upsert for batch easily in this mock, so we iterate
+        for (const upInv of unpaid) {
+            await DB.update('dietanic_invoices', upInv);
+        }
+    }
+    
+    return sentCount;
 };

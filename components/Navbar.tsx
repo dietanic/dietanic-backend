@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, X, ChevronDown, Search, Globe, Leaf, Truck, User, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { ShoppingBag, Menu, X, ChevronDown, Search, Globe, Leaf, Truck, User, Settings, LogOut, ChevronRight, LogIn } from 'lucide-react';
 import { useCart, useAuth } from '../App';
+import { STORAGE_KEYS } from '../services/storage';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,7 +12,7 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { cartItems } = useCart();
-  const { user, login, usersList, canManageStore, isAdmin, isDriver } = useAuth();
+  const { user, login, usersList, canManageStore, isAdmin, isDriver, signOut } = useAuth();
 
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -24,8 +25,11 @@ export const Navbar: React.FC = () => {
     { name: 'Shop', path: '/shop' },
     { name: 'Book Table', path: '/book-table' },
     { name: 'About', path: '/about' },
-    { name: 'Portal', path: '/account' },
   ];
+
+  if (user) {
+      navLinks.push({ name: 'Portal', path: '/account' });
+  }
 
   if (canManageStore) {
     navLinks.push({ name: 'Admin', path: '/admin' });
@@ -38,6 +42,12 @@ export const Navbar: React.FC = () => {
       setIsSearchOpen(false);
       setSearchQuery('');
     }
+  };
+
+  const handleLogout = () => {
+      if(confirm('Are you sure you want to log out?')) {
+          signOut();
+      }
   };
 
   if (['/chain-command', '/delivery', '/vendor-portal', '/admin'].includes(location.pathname)) return null;
@@ -112,71 +122,87 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            <div className="hidden sm:flex items-center gap-2">
-                {isDriver && (
-                    <Link to="/delivery" className="p-2 text-slate-600 hover:bg-slate-100 rounded-full" title="Delivery App">
-                        <Truck size={20} />
-                    </Link>
-                )}
-                {isAdmin && (
-                    <Link to="/chain-command" className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-full" title="HQ View">
-                        <Globe size={20} />
-                    </Link>
-                )}
-            </div>
+            {user && (
+                <div className="hidden sm:flex items-center gap-2">
+                    {isDriver && (
+                        <Link to="/delivery" className="p-2 text-slate-600 hover:bg-slate-100 rounded-full" title="Delivery App">
+                            <Truck size={20} />
+                        </Link>
+                    )}
+                    {isAdmin && (
+                        <Link to="/chain-command" className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-full" title="HQ View">
+                            <Globe size={20} />
+                        </Link>
+                    )}
+                </div>
+            )}
 
             <div className={`hidden md:flex items-center gap-2 ${isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity`}>
-                <div className="relative group">
-                    <button className="flex items-center gap-2 p-1 pr-2 rounded-full border border-gray-200 bg-white/50 hover:bg-white hover:shadow-sm transition-all">
-                        {user.avatar ? (
-                            <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
-                        ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                                user.role === 'admin' ? 'bg-purple-500' : 
-                                user.role === 'customer' ? 'bg-brand-500' : 'bg-blue-500'
-                            }`}>
-                                {user.name.charAt(0)}
+                {user ? (
+                    <div className="relative group">
+                        <button className="flex items-center gap-2 p-1 pr-2 rounded-full border border-gray-200 bg-white/50 hover:bg-white hover:shadow-sm transition-all">
+                            {user.avatar ? (
+                                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                            ) : (
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                                    user.role === 'admin' ? 'bg-purple-500' : 
+                                    user.role === 'customer' ? 'bg-brand-500' : 'bg-blue-500'
+                                }`}>
+                                    {user.name.charAt(0)}
+                                </div>
+                            )}
+                            <ChevronDown size={14} className="text-gray-400" />
+                        </button>
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 p-2 hidden group-hover:block animate-fade-in z-50">
+                            <div className="px-3 py-3 border-b border-gray-100 mb-1">
+                                <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{user.email}</p>
                             </div>
-                        )}
-                        <ChevronDown size={14} className="text-gray-400" />
-                    </button>
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 p-2 hidden group-hover:block animate-fade-in z-50">
-                        <div className="px-3 py-3 border-b border-gray-100 mb-1">
-                            <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                        </div>
-                        <Link to="/account" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg font-medium">
-                            Account Settings
-                        </Link>
-                        {canManageStore && (
-                            <Link to="/admin" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg font-medium">
-                                Admin Dashboard
+                            <Link to="/account" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg font-medium">
+                                Account Settings
                             </Link>
-                        )}
-                        
-                        <div className="my-2 border-t border-gray-100"></div>
-                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase">Switch Role (Demo)</p>
-                        <div className="max-h-48 overflow-y-auto">
-                            {usersList.map(u => (
-                                <button 
-                                    key={u.id}
-                                    onClick={() => login(u.id)}
-                                    className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between ${user.id === u.id ? 'bg-brand-50 text-brand-700' : 'hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        {u.avatar ? (
-                                            <img src={u.avatar} className="w-5 h-5 rounded-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[8px] font-bold text-gray-500">{u.name.charAt(0)}</div>
-                                        )}
-                                        <span className="truncate">{u.name}</span>
+                            {canManageStore && (
+                                <Link to="/admin" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg font-medium">
+                                    Admin Dashboard
+                                </Link>
+                            )}
+                            
+                            {isAdmin && usersList.length > 0 && (
+                                <>
+                                    <div className="my-2 border-t border-gray-100"></div>
+                                    <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase">Switch Role (Debug)</p>
+                                    <div className="max-h-48 overflow-y-auto">
+                                        {usersList.map(u => (
+                                            <button 
+                                                key={u.id}
+                                                onClick={() => login(u.id)}
+                                                className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between ${user.id === u.id ? 'bg-brand-50 text-brand-700' : 'hover:bg-gray-50'}`}
+                                            >
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    {u.avatar ? (
+                                                        <img src={u.avatar} className="w-5 h-5 rounded-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[8px] font-bold text-gray-500">{u.name.charAt(0)}</div>
+                                                    )}
+                                                    <span className="truncate">{u.name}</span>
+                                                </div>
+                                                <span className="text-[10px] uppercase bg-gray-100 px-1.5 py-0.5 rounded ml-2">{u.role}</span>
+                                            </button>
+                                        ))}
                                     </div>
-                                    <span className="text-[10px] uppercase bg-gray-100 px-1.5 py-0.5 rounded ml-2">{u.role}</span>
-                                </button>
-                            ))}
+                                </>
+                            )}
+                            <div className="my-2 border-t border-gray-100"></div>
+                            <button onClick={handleLogout} className="w-full text-left block px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium">
+                                Sign Out
+                            </button>
                         </div>
                     </div>
-                </div>
+                ) : (
+                    <Link to="/login" className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-full text-sm font-bold shadow-md hover:bg-brand-700 transition-all hover:shadow-lg transform hover:-translate-y-0.5">
+                        <LogIn size={16} /> Log In
+                    </Link>
+                )}
             </div>
 
             <Link to="/cart" className="p-2 text-gray-500 hover:text-brand-600 hover:bg-gray-100/50 rounded-full relative transition-colors">
@@ -223,19 +249,27 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* User Section in Drawer */}
-          <div className="p-6 bg-gray-50 border-b border-gray-100">
-             <div className="flex items-center gap-3">
-                {user.avatar ? (
-                  <img src={user.avatar} className="w-10 h-10 rounded-full object-cover shadow-sm border border-white" alt=""/>
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">{user.name.charAt(0)}</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                </div>
-             </div>
-          </div>
+          {user ? (
+              <div className="p-6 bg-gray-50 border-b border-gray-100">
+                 <div className="flex items-center gap-3">
+                    {user.avatar ? (
+                      <img src={user.avatar} className="w-10 h-10 rounded-full object-cover shadow-sm border border-white" alt=""/>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold">{user.name.charAt(0)}</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                    </div>
+                 </div>
+              </div>
+          ) : (
+              <div className="p-6 bg-gray-50 border-b border-gray-100">
+                  <Link to="/login" onClick={() => setIsOpen(false)} className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-bold shadow-md">
+                      <LogIn size={18}/> Log In / Sign Up
+                  </Link>
+              </div>
+          )}
 
           {/* Links */}
           <div className="flex-1 overflow-y-auto py-4">
@@ -256,35 +290,19 @@ export const Navbar: React.FC = () => {
                 </Link>
               ))}
             </div>
-            
-            <div className="mt-8 px-8">
-               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Switch User (Demo)</p>
-               <div className="space-y-2">
-                  {usersList.slice(0, 4).map(u => (
-                    <button 
-                      key={u.id}
-                      onClick={() => { login(u.id); setIsOpen(false); }}
-                      className={`w-full flex items-center gap-3 p-2 rounded-lg border text-left transition-all ${user.id === u.id ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-                    >
-                      <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                        {u.avatar && <img src={u.avatar} className="w-full h-full object-cover" alt=""/>}
-                      </div>
-                      <span className="text-xs font-medium text-gray-700 truncate">{u.name}</span>
-                    </button>
-                  ))}
-               </div>
-            </div>
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-6 border-t border-gray-100 flex gap-4">
-              <button onClick={() => navigate('/account')} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50">
-                <Settings size={14}/> Settings
-              </button>
-              <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gray-100 text-xs font-bold text-red-600 hover:bg-red-50">
-                <LogOut size={14}/> Logout
-              </button>
-          </div>
+          {user && (
+              <div className="p-6 border-t border-gray-100 flex gap-4">
+                  <button onClick={() => { navigate('/account'); setIsOpen(false); }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50">
+                    <Settings size={14}/> Settings
+                  </button>
+                  <button onClick={() => { handleLogout(); setIsOpen(false); }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gray-100 text-xs font-bold text-red-600 hover:bg-red-50">
+                    <LogOut size={14}/> Logout
+                  </button>
+              </div>
+          )}
         </div>
       </aside>
     </>

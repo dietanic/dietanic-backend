@@ -1,18 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DatabaseService } from '../../services/storeService';
+import { DB, STORAGE_KEYS } from '../../services/storage';
 // Fix: Added AlertTriangle to the lucide-react imports to fix 'Cannot find name' error
-import { Terminal, Shield, CheckCircle, Lock, Server, Globe, AlertTriangle } from 'lucide-react';
+import { Terminal, Shield, CheckCircle, Lock, Server, Globe, AlertTriangle, Network, MapPin } from 'lucide-react';
 import { useAuth } from '../../App';
+import { OrganizationNode } from '../../types';
 
 export const SystemTools: React.FC = () => {
   const { isAdmin } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'database' | 'compliance'>('compliance');
+  const [activeSubTab, setActiveSubTab] = useState<'database' | 'compliance' | 'org_map'>('org_map');
   
   // States for DB Terminal
   const [queryExpression, setQueryExpression] = useState('return true;');
   const [queryResults, setQueryResults] = useState<any[]>([]);
   const [queryError, setQueryError] = useState<string|null>(null);
+  
+  // Org Map State
+  const [orgNodes, setOrgNodes] = useState<OrganizationNode[]>([]);
+
+  useEffect(() => {
+      DB.getAll<OrganizationNode>(STORAGE_KEYS.ORG_STRUCTURE).then(setOrgNodes);
+  }, []);
 
   const handleRunQuery = async () => {
       setQueryError(null);
@@ -44,17 +53,51 @@ export const SystemTools: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
         <div className="flex space-x-2 border-b">
-            {['compliance', 'database'].map(t => (
+            {['org_map', 'compliance', 'database'].map(t => (
                 (t === 'database' && !isAdmin) ? null : 
                 <button 
                     key={t} 
                     onClick={() => setActiveSubTab(t as any)} 
                     className={`px-6 py-2 capitalize font-bold text-sm transition-all border-b-2 ${activeSubTab === t ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                 >
-                    {t}
+                    {t.replace('_', ' ')}
                 </button>
             ))}
         </div>
+
+        {activeSubTab === 'org_map' && (
+            <div className="bg-white shadow rounded-2xl overflow-hidden border border-gray-200 p-8">
+                <div className="mb-8">
+                    <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                        <Network size={24} className="text-brand-600"/> Organization Topology
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Multi-Level Branch & Warehouse Mapping</p>
+                </div>
+
+                <div className="relative border-l-2 border-brand-100 ml-4 space-y-6">
+                    {orgNodes.map((node) => (
+                        <div key={node.id} className="relative pl-8">
+                            <div className="absolute -left-[9px] top-4 w-4 h-4 rounded-full border-4 border-white bg-brand-500 shadow-sm"></div>
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between">
+                                <div>
+                                    <h4 className="font-bold text-gray-900">{node.name}</h4>
+                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                                        node.type === 'Headquarters' ? 'bg-purple-100 text-purple-700' :
+                                        node.type === 'Warehouse' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-gray-200 text-gray-700'
+                                    }`}>
+                                        {node.type}
+                                    </span>
+                                </div>
+                                <div className="text-right text-xs text-gray-500">
+                                    {node.parentId ? `Parent: ${orgNodes.find(n=>n.id===node.parentId)?.name}` : 'Root'}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
 
         {activeSubTab === 'database' && isAdmin && (
             <div className="bg-white shadow rounded-2xl overflow-hidden border border-gray-200">

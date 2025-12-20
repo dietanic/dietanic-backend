@@ -137,7 +137,13 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
         const contextStr = mode === 'subscriptions'
             ? `Subscription Plan: ${newProduct.subscriptionFeatures?.join(', ')}`
             : `Ingredients: ${newProduct.ingredients?.join(", ")}`;
-        const description = await generateProductDescription(newProduct.name || "", contextStr);
+        
+        // Pass category as second argument now
+        const description = await generateProductDescription(
+            newProduct.name || "", 
+            newProduct.category || "Item",
+            contextStr
+        );
         setNewProduct({ ...newProduct, description });
     } catch (err) {
         setError("AI Generation failed. Check your API key or connection.");
@@ -457,11 +463,19 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
                         </div>
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700">Description</label>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-sm font-medium text-gray-700">Description</label>
+                            <button 
+                                type="button" 
+                                onClick={handleGenerateDescription} 
+                                disabled={isGeneratingAI || !newProduct.name} 
+                                className="text-xs bg-brand-100 text-brand-700 px-3 py-1.5 rounded-full hover:bg-brand-200 transition-colors flex items-center gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Sparkles size={14} className={isGeneratingAI ? "animate-spin" : ""} /> 
+                                {isGeneratingAI ? 'Writing...' : 'Auto-Write with AI'}
+                            </button>
+                        </div>
                         <textarea className="mt-1 block w-full rounded-md border border-gray-300 p-2" rows={3} value={newProduct.description} onChange={(e) => setNewProduct({...newProduct, description: e.target.value})} />
-                        <button type="button" onClick={handleGenerateDescription} disabled={isGeneratingAI} className="mt-2 text-sm text-brand-600 flex items-center gap-1">
-                            <Sparkles size={16} /> {isGeneratingAI ? 'Generating...' : 'Generate with Gemini AI'}
-                        </button>
                     </div>
                 </div>
                 <div className="mt-4 flex justify-end gap-3">

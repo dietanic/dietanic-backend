@@ -1,4 +1,5 @@
-import { Product, Category, User, Review, Discount, CustomerProfile } from './types';
+
+import { Product, Category, User, Review, Discount, CustomerProfile, Warehouse, OrganizationNode } from './types';
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: '1', name: 'Signature Salads' },
@@ -23,6 +24,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     stock: 45,
     sku: 'SLD-GRN-001',
     lowStockThreshold: 10,
+    trackingMode: 'batch', // Example: Track freshness
     nutritionalInfo: { calories: 320, protein: 8, carbs: 24, fat: 22 }
   },
   {
@@ -38,6 +40,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     stock: 30,
     sku: 'BWL-QNA-001',
     lowStockThreshold: 5,
+    trackingMode: 'simple',
     nutritionalInfo: { calories: 450, protein: 18, carbs: 55, fat: 16 }
   },
   {
@@ -53,6 +56,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     stock: 100,
     sku: 'SUB-LUN-001',
     lowStockThreshold: 20,
+    trackingMode: 'simple',
     subscriptionFeatures: ['Free Delivery', 'Menu Rotation', 'Cancel Anytime'],
     subscriptionPlans: [
       { duration: 'weekly', price: 1500 },
@@ -73,6 +77,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     ingredients: [],
     stock: 9999,
     sku: 'GC-DIGITAL',
+    trackingMode: 'simple',
     variations: [
         { id: 'gc_500', name: '₹500', price: 500, stock: 9999, cost: 0 },
         { id: 'gc_1000', name: '₹1000', price: 1000, stock: 9999, cost: 0 },
@@ -93,6 +98,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     ingredients: ['Orange', 'Carrot', 'Ginger', 'Turmeric'],
     stock: 50,
     sku: 'JCE-CIT-001',
+    trackingMode: 'batch',
     nutritionalInfo: { calories: 120, protein: 2, carbs: 28, fat: 0 }
   }
 ];
@@ -198,4 +204,22 @@ export const INITIAL_REVIEWS: Review[] = [
     comment: 'Absolutely delicious! The dressing is to die for.',
     date: '2023-10-15T10:00:00Z'
   }
+];
+
+// --- NEW CONSTANTS FOR 3 WAREHOUSES & ORG ---
+
+export const INITIAL_WAREHOUSES: Warehouse[] = [
+    { id: 'wh_main', name: 'Main Distribution Hub', type: 'Distribution Center', address: 'Bhiwandi, MH', manager: 'Rajesh K.' },
+    { id: 'wh_cold', name: 'Cold Chain Unit 1', type: 'Cold Storage', address: 'Navi Mumbai, MH', manager: 'Amit S.' },
+    { id: 'wh_dispatch', name: 'Quick Dispatch Center', type: 'Retail Outlet', address: 'Bandra West, MH', manager: 'Sneha P.' }
+];
+
+export const INITIAL_ORG_STRUCTURE: OrganizationNode[] = [
+    { id: 'org_root', name: 'Dietanic HQ', type: 'Headquarters' },
+    { id: 'zone_west', name: 'West Zone', type: 'Zone', parentId: 'org_root' },
+    { id: 'reg_mh', name: 'Maharashtra', type: 'Region', parentId: 'zone_west' },
+    { id: 'branch_mum', name: 'Mumbai Operations', type: 'Branch', parentId: 'reg_mh' },
+    { id: 'wh_main', name: 'Main Distribution Hub', type: 'Warehouse', parentId: 'branch_mum' },
+    { id: 'wh_cold', name: 'Cold Chain Unit 1', type: 'Warehouse', parentId: 'branch_mum' },
+    { id: 'wh_dispatch', name: 'Quick Dispatch Center', type: 'Warehouse', parentId: 'branch_mum' },
 ];

@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CatalogService, EngagementService } from '../services/storeService';
-import { Product, Review, SubscriptionPlan, ProductVariation } from '../types';
+import { CatalogService, EngagementService, APIGateway } from '../services/storeService';
+import { Product, Review, SubscriptionPlan, ProductVariation, InventoryRecord } from '../types';
 import { useCart, useAuth } from '../App';
-import { Star, ShoppingCart, ArrowLeft, User, CheckCircle, Calendar, Loader, Plus, Minus } from 'lucide-react';
+import { Star, ShoppingCart, ArrowLeft, User, CheckCircle, Calendar, Loader, Plus, Minus, MapPin, Store } from 'lucide-react';
 import { ProductRecommender } from '../components/ProductRecommender';
 import { JSONLD } from '../components/SEOHelper';
 
@@ -21,6 +22,10 @@ export const ProductDetail: React.FC = () => {
   const [selectedVariation, setSelectedVariation] = useState<ProductVariation | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [selectedTier, setSelectedTier] = useState<'standard' | 'wholesale'>('standard');
+
+  // Inventory State
+  const [inventory, setInventory] = useState<InventoryRecord[]>([]);
+  const [checkingStock, setCheckingStock] = useState(false);
 
   // Review Form State
   const [rating, setRating] = useState(5);
@@ -54,6 +59,11 @@ export const ProductDetail: React.FC = () => {
             if (prod.variations && prod.variations.length > 0) {
                 setSelectedVariation(prod.variations[0]);
             }
+            // Load Real Inventory
+            setCheckingStock(true);
+            const inv = await APIGateway.Commerce.Inventory.getGlobalView();
+            setInventory(inv.filter(r => r.productId === prod.id));
+            setCheckingStock(false);
         }
         setLoading(false);
     };
@@ -111,7 +121,7 @@ export const ProductDetail: React.FC = () => {
           ? selectedVariation.price 
           : (selectedPlan ? selectedPlan.price : product?.price || 0));
   
-  // Calculate Stock display
+  // Calculate Stock display (Legacy fallback vs Real Inventory)
   const currentStock = selectedVariation ? selectedVariation.stock : product?.stock || 0;
 
   // Construct Product Schema for AI/Search Engines
@@ -272,6 +282,35 @@ export const ProductDetail: React.FC = () => {
                 </div>
             )}
 
+            {/* Real-Time Inventory Visibility Widget */}
+            {!product.isSubscription && (
+                <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-3">
+                        <MapPin size={16} className="text-brand-600"/> Check Store Availability
+                    </h4>
+                    {checkingStock ? (
+                        <div className="text-xs text-gray-500">Checking network...</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {inventory.filter(r => r.available > 0).slice(0, 3).map(rec => (
+                                <div key={rec.id} className="flex justify-between items-center text-sm bg-white p-2 rounded border border-gray-100">
+                                    <span className="flex items-center gap-2 text-gray-700">
+                                        <Store size={14} className="text-gray-400"/>
+                                        {rec.locationName}
+                                    </span>
+                                    <span className="text-green-600 font-bold text-xs">
+                                        {rec.available} In Stock
+                                    </span>
+                                </div>
+                            ))}
+                            {inventory.filter(r => r.available > 0).length === 0 && (
+                                <p className="text-xs text-red-500">Currently out of stock at all locations.</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="mt-10 pt-6 border-t border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-6">
                    <div className="flex-1">
@@ -303,20 +342,15 @@ export const ProductDetail: React.FC = () => {
 
                    <button
                     onClick={handleAddToCart}
+                    disabled={currentStock <= 0}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-md px-8 py-3.5 text-base font-bold text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0 shadow-md ${
-                      added ? 'bg-green-600 shadow-green-200' : 'bg-brand-600 hover:bg-brand-700 shadow-brand-200'
+                      added ? 'bg-green-600 shadow-green-200' : currentStock <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-brand-600 hover:bg-brand-700 shadow-brand-200'
                     }`}
                   >
                     {added ? <CheckCircle className="h-5 w-5"/> : <ShoppingCart className="h-5 w-5"/>}
-                    {added ? 'Added to Cart' : 'Add to Cart'}
+                    {added ? 'Added to Cart' : currentStock <= 0 ? 'Out of Stock' : 'Add to Cart'}
                   </button>
                 </div>
-                
-                {currentStock < 10 && currentStock > 0 && (
-                    <p className="mt-3 text-sm text-red-600 font-medium animate-pulse">
-                        Only {currentStock} left in stock - order soon!
-                    </p>
-                )}
             </div>
           </div>
         </div>

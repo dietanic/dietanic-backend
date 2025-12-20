@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { KnowledgeService } from './knowledge';
 
@@ -82,7 +83,7 @@ export const askNutritionist = async (question: string): Promise<string> => {
   }
 };
 
-export const generateProductDescription = async (name: string, ingredients: string): Promise<string> => {
+export const generateProductDescription = async (name: string, category: string, ingredients: string): Promise<string> => {
   if (!process.env.API_KEY) {
     console.warn("Gemini API Key is missing.");
     return "Fresh and delicious ingredients prepared daily.";
@@ -91,7 +92,7 @@ export const generateProductDescription = async (name: string, ingredients: stri
   try {
     // Fix: Upgrading to gemini-3-flash-preview for creative text generation
     const model = 'gemini-3-flash-preview';
-    const prompt = `Write a mouth-watering, short marketing description (max 2 sentences) for a salad or meal named "${name}" containing the following ingredients: ${ingredients}. Focus on health benefits and freshness.`;
+    const prompt = `Write a mouth-watering, short marketing description (max 2 sentences) for a "${category}" named "${name}" containing the following details/ingredients: ${ingredients}. Focus on health benefits and freshness.`;
 
     const response = await ai.models.generateContent({
       model: model,

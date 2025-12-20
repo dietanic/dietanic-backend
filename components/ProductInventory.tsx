@@ -1,12 +1,12 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { CatalogService } from '../../services/storeService';
-import { generateProductDescription } from '../../services/gemini'; // Updated import
-import { Product, SubscriptionPlan, ProductVariation, NutritionalInfo } from '../../types';
+import { CatalogService } from '../services/storeService';
+import { generateProductDescription } from '../services/gemini'; // Updated import
+import { Product, SubscriptionPlan, ProductVariation, NutritionalInfo } from '../types';
 import { Plus, Trash2, X, ImageIcon, Sparkles, Layers, Lock, Loader, LayoutGrid, ClipboardList, Activity, FileText, Barcode, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../App';
-import { InventoryControl } from './InventoryControl';
+import { InventoryControl } from './admin/InventoryControl';
 
 interface ProductInventoryProps {
   mode: 'products' | 'subscriptions';
@@ -137,7 +137,11 @@ export const ProductInventory: React.FC<ProductInventoryProps> = ({ mode }) => {
         const contextStr = mode === 'subscriptions'
             ? `Subscription Plan: ${newProduct.subscriptionFeatures?.join(', ')}`
             : `Ingredients: ${newProduct.ingredients?.join(", ")}`;
-        const description = await generateProductDescription(newProduct.name || "", contextStr);
+        const description = await generateProductDescription(
+            newProduct.name || "", 
+            newProduct.category || "Item", 
+            contextStr
+        );
         setNewProduct({ ...newProduct, description });
     } catch (err) {
         setError("AI Generation failed. Check your API key or connection.");

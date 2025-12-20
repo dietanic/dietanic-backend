@@ -31,8 +31,8 @@ export const Footer: React.FC = () => {
             <h4 className="text-gray-900 font-bold mb-6 tracking-wide">Legal</h4>
             <ul className="space-y-4 text-sm font-medium text-gray-600">
               <li><Link to="/terms" className="hover:text-brand-600 transition-colors">Terms & Conditions</Link></li>
-              <li><Link to="/terms" className="hover:text-brand-600 transition-colors">Refund Policy</Link></li>
-              <li><Link to="/terms" className="hover:text-brand-600 transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/refund-policy" className="hover:text-brand-600 transition-colors">Refund Policy</Link></li>
+              <li><Link to="/privacy" className="hover:text-brand-600 transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
           {/* Column 4 */}

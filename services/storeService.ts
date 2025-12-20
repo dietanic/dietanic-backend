@@ -1,5 +1,4 @@
 
-
 export * from './storage';
 export * from './eventBus';
 export * from './catalog';
@@ -21,4 +20,5 @@ export * from './payroll';
 export * from './delivery';
 export * from './assets';
 export * from './cro';
-export * from './analytics'; // Added missing export
+export * from './analytics'; 
+export * from './inventory'; // Added

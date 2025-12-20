@@ -1,9 +1,8 @@
 
-
 import { Payslip, SalaryStructure } from '../types';
 import { DB, delay } from './storage';
 import { IdentityService } from './identity';
-import { APIGateway } from './apiGateway'; // Import APIGateway
+import { addExpense } from './finance/expenses';
 
 const KEY = 'dietanic_payslips';
 
@@ -11,7 +10,7 @@ export const PayrollService = {
     getPayslips: () => DB.getAll<Payslip>(KEY, []),
     savePayslip: async (p: Payslip) => {
         await DB.add(KEY, p);
-        await APIGateway.Finance.Expenses.addExpense({ // Use APIGateway
+        await addExpense({
             id: `exp_${p.id}`, 
             category: 'Salaries', 
             amount: p.netSalary, 

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
@@ -12,10 +13,13 @@ import { Kitchen } from './pages/Kitchen';
 import { BookTable } from './pages/BookTable';
 import { ProductDetail } from './pages/ProductDetail';
 import { Terms } from './pages/Terms';
-import { About } from './pages/About'; // Import About
+import { Privacy } from './pages/Privacy';
+import { RefundPolicy } from './pages/RefundPolicy';
+import { About } from './pages/About'; 
 import { ChainCommand } from './pages/ChainCommand';
 import { FieldAgent } from './pages/FieldAgent';
 import { VendorPortal } from './pages/VendorPortal';
+import { Login } from './pages/Login';
 import { TrackCommWidget } from './components/TrackCommWidget';
 import { NewsletterPopup } from './components/NewsletterPopup';
 import { ToastSystem } from './components/ToastSystem';
@@ -26,8 +30,11 @@ import { Product, CartItem, SubscriptionPlan, User, ProductVariation } from './t
 
 // Auth Context
 interface AuthContextType {
-  user: User;
+  user: User | null;
   login: (userId: string) => void;
+  signIn: (email: string, pass: string) => Promise<boolean>;
+  signUp: (email: string, pass: string, name: string) => Promise<boolean>;
+  signOut: () => void;
   usersList: User[];
   isAdmin: boolean;
   isEditor: boolean;
@@ -80,7 +87,8 @@ const App: React.FC = () => {
   // Use Global Store Hook
   const store = useAppStore();
 
-  if (store.isLoadingAuth || !store.user) {
+  // Block only on initial auth check, but NOT if user is just null (Guest)
+  if (store.isLoadingAuth) {
       return <div className="min-h-screen flex items-center justify-center text-brand-600 animate-pulse">Initializing Dietanic...</div>;
   }
 
@@ -89,6 +97,9 @@ const App: React.FC = () => {
         <AuthContext.Provider value={{ 
             user: store.user, 
             login: store.login, 
+            signIn: store.signIn,
+            signUp: store.signUp,
+            signOut: store.signOut,
             usersList: store.usersList, 
             isAdmin: store.isAdmin, 
             isEditor: store.isEditor, 
@@ -118,18 +129,25 @@ const App: React.FC = () => {
                         <Route path="/shop" element={<Shop />} />
                         <Route path="/product/:id" element={<ProductDetail />} />
                         <Route path="/cart" element={<Cart />} />
-                        <Route path="/admin" element={<Admin />} />
-                        <Route path="/account" element={<Customer />} />
+                        <Route path="/login" element={<Login />} />
+                        
+                        {/* Protected Routes */}
+                        <Route path="/admin" element={store.canManageStore ? <Admin /> : <Navigate to="/login" />} />
+                        <Route path="/account" element={store.user ? <Customer /> : <Navigate to="/login" />} />
+                        
                         <Route path="/book-table" element={<BookTable />} />
                         <Route path="/terms" element={<Terms />} />
-                        <Route path="/about" element={<About />} /> {/* Route Added */}
+                        <Route path="/privacy" element={<Privacy />} />
+                        <Route path="/refund-policy" element={<RefundPolicy />} />
+                        <Route path="/about" element={<About />} />
+                        
                         {/* Operations Routes */}
-                        <Route path="/pos" element={store.canManageStore ? <POS /> : <Navigate to="/" />} />
-                        <Route path="/kitchen" element={store.canManageStore ? <Kitchen /> : <Navigate to="/" />} />
+                        <Route path="/pos" element={store.canManageStore ? <POS /> : <Navigate to="/login" />} />
+                        <Route path="/kitchen" element={store.canManageStore ? <Kitchen /> : <Navigate to="/login" />} />
                         {/* Delivery Route */}
-                        <Route path="/delivery" element={store.isDriver ? <FieldAgent /> : <Navigate to="/" />} />
+                        <Route path="/delivery" element={store.isDriver ? <FieldAgent /> : <Navigate to="/login" />} />
                         {/* New Chain Command Route */}
-                        <Route path="/chain-command" element={store.isAdmin ? <ChainCommand /> : <Navigate to="/admin" />} />
+                        <Route path="/chain-command" element={store.isAdmin ? <ChainCommand /> : <Navigate to="/login" />} />
                         {/* Vendor Portal */}
                         <Route path="/vendor-portal" element={<VendorPortal />} />
                     </Routes>
@@ -139,7 +157,7 @@ const App: React.FC = () => {
 
                     {/* Marketing Widgets */}
                     <NewsletterPopup />
-                    <TrackCommWidget />
+                    {store.user && <TrackCommWidget />}
                     <ToastSystem /> 
                 </div>
                 </Router>

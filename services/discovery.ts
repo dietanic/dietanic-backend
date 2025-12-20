@@ -1,8 +1,9 @@
-import { getProducts, getCategories } from './catalog';
 
-export const generateLLMContent = (): string => {
-  const products = getProducts();
-  const categories = getCategories();
+import { CatalogService } from './catalog';
+
+export const generateLLMContent = async (): Promise<string> => {
+  const products = await CatalogService.getProducts();
+  const categories = await CatalogService.getCategories();
   const timestamp = new Date().toISOString().split('T')[0];
   
   let content = `# Dietanic Store Inventory\n`;

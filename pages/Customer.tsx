@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { SalesService, CatalogService, EngagementService, CustomerService, WalletService, IdentityService, APIGateway } from '../services/storeService';
 import { locateOrderDestination } from '../services/gemini'; // Updated import
@@ -12,6 +11,7 @@ import {
 import { useWishlist, useAuth } from '../App';
 import { ProductCard } from '../components/ProductCard';
 import { Link } from 'react-router-dom';
+import { STORAGE_KEYS } from '../services/storage';
 
 export const Customer: React.FC = () => {
   const { user } = useAuth();
@@ -149,6 +149,14 @@ export const Customer: React.FC = () => {
       }
   };
 
+  const handleLogout = () => {
+      if(confirm('Are you sure you want to log out?')) {
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+          window.location.href = '/';
+          window.location.reload();
+      }
+  };
+
   const getProgressWidth = (status: string) => {
     switch (status) {
         case 'pending': return '15%';
@@ -275,7 +283,10 @@ export const Customer: React.FC = () => {
                         <NavItem id="settings" icon={Settings} label="Account Settings" />
                         
                         <div className="border-l lg:border-l-0 lg:border-t border-gray-100 mx-2 lg:mx-0 my-0 lg:my-2 pt-0 lg:pt-2 flex items-center lg:block">
-                            <button className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors whitespace-nowrap">
+                            <button 
+                                onClick={handleLogout}
+                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors whitespace-nowrap w-full text-left"
+                            >
                                 <LogOut size={18} /> <span className="hidden lg:inline">Log Out</span>
                             </button>
                         </div>
@@ -283,6 +294,7 @@ export const Customer: React.FC = () => {
                 </div>
 
                 <div className="flex-1">
+                    {/* ... (Existing Tab Content remains unchanged) ... */}
                     {['orders', 'documents', 'wallet', 'support', 'wishlist'].includes(activeTab) && (
                         <div className="mb-6 space-y-4">
                             <div className="relative">
@@ -487,8 +499,10 @@ export const Customer: React.FC = () => {
                         </div>
                     )}
 
+                    {/* ... (Other tabs: wallet, settings, orders, wishlist, documents are largely the same as original but included in file content context so omitting redundant blocks for brevity unless changes were made there) ... */}
                     {activeTab === 'wallet' && (
                         <div className="space-y-6">
+                            {/* ... Wallet content ... */}
                             <h2 className="text-xl font-bold text-gray-900">Digital Wallet & Gift Cards</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="md:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">

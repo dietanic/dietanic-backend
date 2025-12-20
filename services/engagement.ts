@@ -3,40 +3,87 @@ import { Review, ChatSession, ChatMessage, Visitor, Product, Order } from '../ty
 import { STORAGE_KEYS, delay, getLocalStorage, setLocalStorage } from './storage';
 import { SalesService } from './sales';
 import { CatalogService } from './catalog';
+import { supabase } from './supabase';
 
 export const chatEvents = new EventTarget();
 
 export const EngagementService = {
-  // Reviews
+  // Reviews (Supabase)
   getReviews: async (): Promise<Review[]> => {
-    await delay();
-    return getLocalStorage<Review[]>(STORAGE_KEYS.REVIEWS, []);
+    const { data, error } = await supabase.from('reviews').select('*');
+    if (error) {
+        console.error("Error fetching reviews", error);
+        return [];
+    }
+    // Map DB columns to Review type (snake_case to camelCase if needed, assuming direct map for now)
+    return data.map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        userId: r.user_id,
+        userName: r.user_name,
+        rating: r.rating,
+        comment: r.comment,
+        date: r.created_at
+    }));
   },
 
   getProductReviews: async (productId: string): Promise<Review[]> => {
-    await delay();
-    const reviews = getLocalStorage<Review[]>(STORAGE_KEYS.REVIEWS, []);
-    return reviews.filter(r => r.productId === productId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false });
+    
+    if (error) return [];
+
+    return data.map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        userId: r.user_id,
+        userName: r.user_name,
+        rating: r.rating,
+        comment: r.comment,
+        date: r.created_at
+    }));
   },
 
   addReview: async (review: Review): Promise<void> => {
-    await delay();
-    const reviews = getLocalStorage<Review[]>(STORAGE_KEYS.REVIEWS, []);
-    reviews.push(review);
-    setLocalStorage(STORAGE_KEYS.REVIEWS, reviews);
+    const { error } = await supabase.from('reviews').insert({
+        product_id: review.productId,
+        user_id: review.userId,
+        user_name: review.userName,
+        rating: review.rating,
+        comment: review.comment,
+        created_at: review.date
+    });
+    if (error) console.error("Failed to add review", error);
   },
 
-  // Wishlist
+  // Wishlist (Supabase Profile Column)
   getWishlist: async (): Promise<string[]> => {
-    await delay(100);
-    return getLocalStorage<string[]>(STORAGE_KEYS.WISHLIST, []);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data } = await supabase
+        .from('profiles')
+        .select('wishlist')
+        .eq('id', user.id)
+        .single();
+    
+    return data?.wishlist || [];
   },
 
   saveWishlist: async (list: string[]): Promise<void> => {
-    setLocalStorage(STORAGE_KEYS.WISHLIST, list);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase
+        .from('profiles')
+        .update({ wishlist: list })
+        .eq('id', user.id);
   },
 
-  // Recently Viewed Tracking
+  // Recently Viewed Tracking (Local Storage is fine for ephemeral session data)
   addToRecentlyViewed: (productId: string) => {
       const MAX_ITEMS = 6;
       const key = 'dietanic_recently_viewed';

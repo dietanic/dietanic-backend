@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
-import { IdentityService } from '../../services/storeService';
-import { sendPasswordResetEmail } from '../../services/emailService';
-import { User, Permission } from '../../types';
-import { User as UserIcon, Mail, Trash2, Plus, Shield, CheckCircle, Ban, Users, Eye, Phone, ShieldCheck, X, ChevronDown, Check, ClipboardCheck, Briefcase, Activity, AlertCircle } from 'lucide-react';
+import { IdentityService, CustomerService } from '../../services/storeService';
+import { sendPasswordResetEmail, sendTestimonialRequestEmail, sendPaymentReminderEmail } from '../../services/notifications'; // Direct import for actions
+import { User, Permission, Order } from '../../types';
+import { User as UserIcon, Mail, Trash2, Plus, Shield, CheckCircle, Ban, Users, Eye, Phone, ShieldCheck, X, ChevronDown, Check, ClipboardCheck, Briefcase, Activity, AlertCircle, MessageSquare, Bell } from 'lucide-react';
 import { useAuth } from '../../App';
 import { CustomerDetail } from './CustomerDetail';
+import { SalesService } from '../../services/storeService';
 
 interface UserManagementProps {
     viewMode: 'internal' | 'customer';
@@ -120,6 +122,32 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
     const handleTierChange = async (user: User, newTier: 'standard' | 'wholesale') => {
         await IdentityService.updateUser({...user, priceTier: newTier});
         loadUsers();
+    };
+
+    // Client Management Action: Request Testimonial
+    const handleRequestTestimonial = async (user: User) => {
+        const orders = await SalesService.getOrdersByUser(user.id);
+        const lastDelivered = orders.find(o => o.status === 'delivered');
+        
+        if (lastDelivered) {
+            await sendTestimonialRequestEmail(lastDelivered, user);
+            alert(`Review request sent to ${user.name} for Order #${lastDelivered.id.slice(-6)}`);
+        } else {
+            alert("No delivered orders found for this user.");
+        }
+    };
+
+    // Client Management Action: Send Payment Reminder
+    const handleSendPaymentReminder = async (user: User) => {
+        const profile = await CustomerService.getCustomerByUserId(user.id);
+        const unpaidInvoice = profile?.billing.invoices.find(i => i.balanceDue > 0);
+        
+        if (unpaidInvoice) {
+            await sendPaymentReminderEmail(unpaidInvoice, user);
+            alert(`Payment reminder sent to ${user.name} for Invoice #${unpaidInvoice.id.slice(-6)}`);
+        } else {
+            alert("No pending invoices found for this user.");
+        }
     };
 
     if (!isAdmin) {
@@ -257,7 +285,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
                                     {viewMode === 'internal' ? 'Domain Authority' : 'Commercial Tier'}
                                 </th>
                                 <th className="px-10 py-7 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">Protocol Status</th>
-                                <th className="px-10 py-7 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">Admin Actions</th>
+                                <th className="px-10 py-7 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -329,21 +357,29 @@ export const UserManagement: React.FC<UserManagementProps> = ({ viewMode }) => {
                                         </button>
                                     </td>
                                     <td className="px-10 py-8 whitespace-nowrap text-right">
-                                        <div className="flex justify-end gap-4">
+                                        <div className="flex justify-end gap-2">
                                             {viewMode === 'customer' ? (
-                                                <button onClick={() => setSelectedUser(u)} className="p-4 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-[1.25rem] transition-all shadow-sm border border-slate-100 hover:border-brand-100" title="Deep Audit">
-                                                    <Eye size={22} />
-                                                </button>
+                                                <>
+                                                    <button onClick={() => handleRequestTestimonial(u)} className="p-3 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Request Review">
+                                                        <MessageSquare size={18} />
+                                                    </button>
+                                                    <button onClick={() => handleSendPaymentReminder(u)} className="p-3 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Send Payment Reminder">
+                                                        <Bell size={18} />
+                                                    </button>
+                                                    <button onClick={() => setSelectedUser(u)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Deep Audit">
+                                                        <Eye size={18} />
+                                                    </button>
+                                                </>
                                             ) : u.role !== 'admin' && (
-                                                <button onClick={() => setPermissionsModal(u)} className="p-4 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-[1.25rem] transition-all shadow-sm border border-slate-100 hover:border-indigo-100" title="Grant Authority">
-                                                    <ShieldCheck size={22} />
+                                                <button onClick={() => setPermissionsModal(u)} className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Grant Authority">
+                                                    <ShieldCheck size={18} />
                                                 </button>
                                             )}
-                                            <button onClick={() => handleResetPassword(u)} className="p-4 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-[1.25rem] transition-all shadow-sm border border-slate-100 hover:border-blue-100" title="Email Verification">
-                                                <Mail size={22}/>
+                                            <button onClick={() => handleResetPassword(u)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Email Verification">
+                                                <Mail size={18}/>
                                             </button>
-                                            <button onClick={() => handleDelete(u.id)} className="p-4 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-[1.25rem] transition-all shadow-sm border border-slate-100 hover:border-rose-100" title="Wipe Instance">
-                                                <Trash2 size={22}/>
+                                            <button onClick={() => handleDelete(u.id)} className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-slate-100" title="Wipe Instance">
+                                                <Trash2 size={18}/>
                                             </button>
                                         </div>
                                     </td>

@@ -1,15 +1,15 @@
 
-import { Order, User } from '../types';
+import { Order, User, Invoice } from '../types';
 import { sendEmail } from './mailer';
 import { GlobalEventBus, EVENTS } from './eventBus';
 import { IdentityService } from './identity';
+import { SalesService } from './sales';
 
 // --- Notification Microservice Logic ---
 // Listens to system events and triggers email communications independently
 
 GlobalEventBus.on(EVENTS.ORDER_CREATED, async (order: Order) => {
     // Fetch user details to send email
-    // In a real microservice, this might be a separate API call or data contained in the event payload
     const user = await IdentityService.getUserById(order.userId);
     if (user) {
         console.log(`🔔 Notification Service: Sending Confirmation for Order ${order.id}`);
@@ -22,6 +22,20 @@ GlobalEventBus.on(EVENTS.ORDER_UPDATED, async (order: Order) => {
     if (user) {
         console.log(`🔔 Notification Service: Sending Status Update (${order.status}) for Order ${order.id}`);
         await sendOrderStatusUpdateEmail(order, user);
+
+        // --- AUTOMATIC TESTIMONIAL COLLECTION ---
+        // If order is delivered and we haven't asked for a review yet
+        if (order.status === 'delivered' && !order.testimonialRequested) {
+            console.log(`⭐ Notification Service: Triggering Auto-Testimonial Request for ${order.id}`);
+            // Mark as requested to prevent duplicates
+            order.testimonialRequested = true;
+            await SalesService.updateOrder(order);
+            
+            // Schedule the email (simulated delay of 1 hour in real world, 2s here)
+            setTimeout(async () => {
+                await sendTestimonialRequestEmail(order, user);
+            }, 2000);
+        }
     }
 });
 
@@ -79,6 +93,41 @@ If you didn't request this, you can safely ignore this email.
 
 Best,
 The Dietanic Team`;
+
+    await sendEmail(user.email, subject, body);
+};
+
+export const sendTestimonialRequestEmail = async (order: Order, user: User) => {
+    const subject = `How was your Dietanic meal? 🥗`;
+    const body = `Hi ${user.name},
+
+We hope you enjoyed your recent order from Dietanic!
+
+We'd love to hear your thoughts. Could you spare a minute to rate your experience?
+Your feedback helps us keep things fresh and delicious.
+
+Click here to rate your ${order.items[0].name}:
+${window.location.origin}/#/product/${order.items[0].id}?review=true
+
+Thanks for being a valued customer!
+The Dietanic Team`;
+
+    await sendEmail(user.email, subject, body);
+};
+
+export const sendPaymentReminderEmail = async (invoice: Invoice, user: User) => {
+    const subject = `Payment Reminder: Invoice #${invoice.id.slice(-6)} Overdue`;
+    const body = `Hi ${user.name},
+
+This is a friendly reminder that invoice #${invoice.id.slice(-6)} for ₹${invoice.balanceDue.toFixed(2)} is due.
+
+Please arrange for payment at your earliest convenience to avoid any service interruption.
+
+You can view and pay your invoice here:
+${window.location.origin}/#/account?tab=documents
+
+Thank you,
+Dietanic Finance Team`;
 
     await sendEmail(user.email, subject, body);
 };

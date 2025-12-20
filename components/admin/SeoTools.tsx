@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { performSEOAudit, simulateImageOptimization, generateLLMContent, AuditResult } from '../../services/seoService';
 import { Zap, ImageIcon, FileText, Download, Search, CheckCircle, AlertTriangle, BarChart2 } from 'lucide-react';
@@ -10,7 +11,7 @@ export const SeoTools: React.FC = () => {
   const [llmContent, setLlmContent] = useState('');
 
   useEffect(() => {
-      setLlmContent(generateLLMContent());
+      generateLLMContent().then(setLlmContent);
   }, []);
 
   const handleOptimize = async () => {
@@ -19,7 +20,7 @@ export const SeoTools: React.FC = () => {
       setOptimizing(false);
   };
 
-  const handleAudit = () => setAuditResult(performSEOAudit());
+  const handleAudit = async () => setAuditResult(await performSEOAudit());
 
   return (
     <div className="space-y-6 animate-fade-in">

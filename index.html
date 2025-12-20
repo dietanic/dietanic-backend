@@ -27,6 +27,9 @@
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Manrope', 'sans-serif'],
+            },
             colors: {
               brand: {
                 50: '#f0fdf4',
@@ -42,9 +45,9 @@
       };
     </script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Manrope', sans-serif;
       }
     </style>
   <script type="importmap">
@@ -55,7 +58,8 @@
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0"
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0"
   }
 }
 </script>

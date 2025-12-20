@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { APIGateway } from '../../services/storeService'; // Use APIGateway
 import { Expense, LedgerEntry, LedgerAccount, BankTransaction, FinancialForecast, Quote, SalesOrder, Invoice, Vendor, Bill, Project, VendorCredit, JournalLine } from '../../types';
 import { 
     DollarSign, TrendingUp, FileText, Plus, RefreshCw, Layers, Scale, 
     ArrowUpRight, ArrowDownRight, Briefcase, Users, FilePlus, Check, X, Clock, Calendar, CheckCircle,
-    Receipt, Tag, AlertTriangle, Truck, Upload, Book, Table
+    Receipt, Tag, AlertTriangle, Truck, Upload, Book, Table, Globe, Send
 } from 'lucide-react';
 import { TaxSettingsPanel } from './TaxSettings';
+import { sendBatchPaymentReminders } from '../../services/finance/receivables';
 
 // --- ACCOUNTING / LEDGER COMPONENTS ---
 
@@ -17,9 +19,11 @@ const AccountingTab: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     // Manual Entry State
-    const [newJournal, setNewJournal] = useState<{description: string, date: string, lines: {accountId: string, debit: number, credit: number}[]}>({
+    const [newJournal, setNewJournal] = useState<{description: string, date: string, currency: string, exchangeRate: number, lines: {accountId: string, debit: number, credit: number}[]}>({
         description: '',
         date: new Date().toISOString().split('T')[0],
+        currency: 'INR',
+        exchangeRate: 1,
         lines: [
             { accountId: '', debit: 0, credit: 0 },
             { accountId: '', debit: 0, credit: 0 }
@@ -71,10 +75,12 @@ const AccountingTab: React.FC = () => {
                 description: newJournal.description,
                 referenceType: 'Adjustment',
                 lines: newJournal.lines.map(l => ({ ...l, debit: Number(l.debit), credit: Number(l.credit) })),
-                status: 'posted'
+                status: 'posted',
+                currency: newJournal.currency,
+                exchangeRate: newJournal.exchangeRate
             });
             alert("Posted successfully");
-            setNewJournal({ description: '', date: new Date().toISOString().split('T')[0], lines: [{ accountId: '', debit: 0, credit: 0 }, { accountId: '', debit: 0, credit: 0 }]});
+            setNewJournal({ description: '', date: new Date().toISOString().split('T')[0], currency: 'INR', exchangeRate: 1, lines: [{ accountId: '', debit: 0, credit: 0 }, { accountId: '', debit: 0, credit: 0 }]});
             loadData();
         } catch (e: any) {
             alert(e.message);
@@ -99,7 +105,7 @@ const AccountingTab: React.FC = () => {
                                 <th className="px-6 py-3 text-left font-bold text-gray-500">Code</th>
                                 <th className="px-6 py-3 text-left font-bold text-gray-500">Account Name</th>
                                 <th className="px-6 py-3 text-left font-bold text-gray-500">Type</th>
-                                <th className="px-6 py-3 text-right font-bold text-gray-500">Balance</th>
+                                <th className="px-6 py-3 text-right font-bold text-gray-500">Balance (Base)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -128,14 +134,23 @@ const AccountingTab: React.FC = () => {
             {view === 'journal' && (
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-4xl">
                     <h3 className="text-lg font-bold mb-4">Manual Journal Entry</h3>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
+                    <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div className="col-span-1">
                             <label className="block text-xs font-bold text-gray-500 mb-1">Date</label>
                             <input type="date" className="w-full border rounded p-2" value={newJournal.date} onChange={e => setNewJournal({...newJournal, date: e.target.value})} />
                         </div>
-                        <div>
+                        <div className="col-span-2">
                             <label className="block text-xs font-bold text-gray-500 mb-1">Description</label>
                             <input type="text" className="w-full border rounded p-2" placeholder="e.g. Monthly Depreciation" value={newJournal.description} onChange={e => setNewJournal({...newJournal, description: e.target.value})} />
+                        </div>
+                        <div className="col-span-1">
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Currency</label>
+                            <div className="flex gap-1">
+                                <select className="border rounded p-2 text-sm w-20" value={newJournal.currency} onChange={e => setNewJournal({...newJournal, currency: e.target.value, exchangeRate: e.target.value === 'INR' ? 1 : newJournal.exchangeRate})}>
+                                    <option>INR</option><option>USD</option><option>EUR</option><option>AED</option>
+                                </select>
+                                <input type="number" className="border rounded p-2 text-sm w-20" disabled={newJournal.currency === 'INR'} value={newJournal.exchangeRate} onChange={e => setNewJournal({...newJournal, exchangeRate: Number(e.target.value)})} placeholder="Rate"/>
+                            </div>
                         </div>
                     </div>
 
@@ -188,7 +203,12 @@ const AccountingTab: React.FC = () => {
                                     <h4 className="font-bold text-gray-900">{entry.description}</h4>
                                     <p className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString()} • Ref: {entry.referenceType} #{entry.referenceId?.slice(-6)}</p>
                                 </div>
-                                <span className="font-mono text-sm font-bold">₹{entry.totalAmount.toLocaleString()}</span>
+                                <div className="text-right">
+                                    <span className="font-mono text-sm font-bold block">₹{entry.totalAmount.toLocaleString()}</span>
+                                    {entry.currency && entry.currency !== 'INR' && (
+                                        <span className="text-xs text-gray-400">({entry.currency} @ {entry.exchangeRate})</span>
+                                    )}
+                                </div>
                             </div>
                             <div className="space-y-1">
                                 {entry.lines.map((line, idx) => {
@@ -217,6 +237,7 @@ const AccountingTab: React.FC = () => {
 const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], invoices: Invoice[], refresh: () => void }> = ({ quotes, salesOrders, invoices, refresh }) => {
     const [paymentModal, setPaymentModal] = useState<string | null>(null); 
     const [paymentAmount, setPaymentAmount] = useState(0);
+    const [isAutomating, setIsAutomating] = useState(false);
 
     const handleRecordPayment = async () => {
         if (paymentModal && paymentAmount > 0) {
@@ -224,6 +245,19 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
             setPaymentModal(null);
             setPaymentAmount(0);
             refresh();
+        }
+    };
+
+    const handleBatchReminders = async () => {
+        setIsAutomating(true);
+        try {
+            const sent = await sendBatchPaymentReminders();
+            alert(`Sent ${sent} payment reminder emails.`);
+            refresh();
+        } catch (e: any) {
+            alert("Error sending reminders: " + e.message);
+        } finally {
+            setIsAutomating(false);
         }
     };
 
@@ -241,7 +275,14 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800">Invoices & Payments</h3>
+                    <h3 className="font-bold text-gray-800">Invoices & Collections</h3>
+                    <button 
+                        onClick={handleBatchReminders}
+                        disabled={isAutomating}
+                        className="bg-brand-600 text-white text-xs px-4 py-2 rounded-md font-bold flex items-center gap-2 hover:bg-brand-700 disabled:opacity-50"
+                    >
+                        {isAutomating ? 'Processing...' : <><Send size={14}/> Run Auto-Reminders</>}
+                    </button>
                 </div>
                 <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-gray-500">
@@ -249,6 +290,8 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
                             <th className="px-4 py-3 text-left">#</th>
                             <th className="px-4 py-3 text-left">Customer</th>
                             <th className="px-4 py-3 text-right">Balance</th>
+                            <th className="px-4 py-3 text-right">Status</th>
+                            <th className="px-4 py-3 text-right">Last Reminder</th>
                             <th className="px-4 py-3 text-right">Action</th>
                         </tr>
                     </thead>
@@ -258,6 +301,15 @@ const ReceivablesTab: React.FC<{ quotes: Quote[], salesOrders: SalesOrder[], inv
                                 <td className="px-4 py-3 font-mono text-xs">{inv.id.slice(-6)}</td>
                                 <td className="px-4 py-3">{inv.customerName}</td>
                                 <td className="px-4 py-3 text-right font-bold">₹{inv.balanceDue.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className={`text-xs px-2 py-0.5 rounded uppercase font-bold ${
+                                        inv.status === 'paid' ? 'bg-green-100 text-green-700' : 
+                                        inv.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>{inv.status}</span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-xs text-gray-500">
+                                    {inv.lastPaymentReminder ? new Date(inv.lastPaymentReminder).toLocaleDateString() : '-'}
+                                </td>
                                 <td className="px-4 py-3 text-right">
                                     {inv.balanceDue > 0 && (
                                         <button onClick={() => { setPaymentModal(inv.id); setPaymentAmount(inv.balanceDue); }} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded hover:bg-blue-100">Record Pay</button>

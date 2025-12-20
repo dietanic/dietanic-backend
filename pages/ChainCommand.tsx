@@ -51,6 +51,15 @@ export const ChainCommand: React.FC = () => {
         }
     };
 
+    const handleGlobalAction = () => {
+        alert("Global Command Center: This feature is coming soon.");
+    };
+
+    const handleRemoteAction = (action: string) => {
+        if (!selectedStore) return;
+        alert(`${action} signal sent to ${selectedStore.name}. Awaiting confirmation.`);
+    };
+
     if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-mono">INITIALIZING UPLINK...</div>;
 
     return (
@@ -86,7 +95,10 @@ export const ChainCommand: React.FC = () => {
                             <p className="text-xl font-bold text-blue-400 font-mono">{stats?.totalOrders}</p>
                         </div>
                         <div className="h-8 w-[1px] bg-slate-800 mx-2"></div>
-                        <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2">
+                        <button 
+                            onClick={handleGlobalAction}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2"
+                        >
                             <Command size={14} /> Global Actions
                         </button>
                     </div>
@@ -297,15 +309,24 @@ export const ChainCommand: React.FC = () => {
                                 <div>
                                     <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Remote Actions</p>
                                     <div className="space-y-2">
-                                        <button className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group">
+                                        <button 
+                                            onClick={() => handleRemoteAction('Push Notification')}
+                                            className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group"
+                                        >
                                             <span>Send Push Notification</span>
                                             <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
                                         </button>
-                                        <button className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group">
+                                        <button 
+                                            onClick={() => handleRemoteAction('Inventory Audit')}
+                                            className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group"
+                                        >
                                             <span>Request Inventory Audit</span>
                                             <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
                                         </button>
-                                        <button className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group">
+                                        <button 
+                                            onClick={() => handleRemoteAction('Digital Signage Update')}
+                                            className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xs py-2 px-3 rounded flex justify-between items-center group"
+                                        >
                                             <span>Update Digital Signage</span>
                                             <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
                                         </button>

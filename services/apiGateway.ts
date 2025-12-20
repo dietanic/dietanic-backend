@@ -12,6 +12,7 @@ import { PayrollService } from './payroll';
 import { DeliveryService } from './delivery';
 import { ChainService } from './chainService';
 import { MarketingService } from './marketing';
+import { InventoryService } from './inventory';
 import { Product, Order, User, Review, Discount, TaxSettings, KnowledgeArticle, Asset, Payslip } from '../types';
 import { KnowledgeService } from './knowledge';
 
@@ -46,6 +47,12 @@ export const APIGateway = {
         Pricing: {
             validateDiscount: (code: string, amount: number, categories: string[]) => DiscountService.validateDiscount(code, amount, categories),
             getDiscounts: () => DiscountService.getDiscounts()
+        },
+        Inventory: {
+            getGlobalView: () => InventoryService.getInventory(),
+            getProductATP: (id: string) => InventoryService.getGlobalATP(id),
+            syncSource: (source: 'ERP'|'WMS'|'POS') => InventoryService.syncExternalSource(source),
+            allocate: (order: Order) => InventoryService.allocateStock(order)
         }
     },
 
